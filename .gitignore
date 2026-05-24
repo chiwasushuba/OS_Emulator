@@ -1,0 +1,11 @@
+.vs/
+x64/
+Debug/
+*.obj
+*.pdb
+*.ilk
+*.tlog
+*.log
+*.vsidx
+*.ipch
+*.suo
