@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="OS_Emulator.vcxproj" />
+  <Project Path="OS_Emulator.vcxproj" Id="a62cbdf4-720a-4f5e-b49d-4d5616c4f492" />
 </Solution>
