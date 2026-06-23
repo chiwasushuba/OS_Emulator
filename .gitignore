@@ -10,3 +10,5 @@ Debug/
 *.ipch
 *.suo
 UpgradeLog.htm
+build/
+*.exe
