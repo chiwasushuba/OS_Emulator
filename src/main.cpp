@@ -1,10 +1,9 @@
-// TODO: Create Entry Point for program
-
 #include <iostream>
+#include <kernel.h>
 
 int main() {
-    std::cout << "Hello World!";
-    // Instantiate Kernel
-    // Start Kernel
+    std::cout << "Initializing Kernel...\n";
+    Kernel kernel;
+    kernel.start();
     return 0;
 }
