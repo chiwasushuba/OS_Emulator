@@ -23,7 +23,8 @@ enum class SleepState {
 enum class LogEventType {
     NONE,
     INSTRUCTION_FINISHED,
-    PROCESS_STARTED
+    PROCESS_STARTED,
+    LOG
 };
 
 // Logging the snapshot of a process
@@ -75,6 +76,9 @@ class Instruction {
         
         // Most basic instructions complete in 1 step, but SLEEP or FOR might take longer, thus needing parameter tracking
         virtual bool is_completed() const { return true; };
+
+        // Overridden by instructions with state
+        virtual void reset() {}
 };
 
 // Process Control Block PCB, no need for mutex since there would be only one universal scheduler
@@ -98,7 +102,7 @@ class Process {
         }
 
         bool is_finished() const {
-            return current_instruction >= instruction_list.size();
+            return current_instruction >= (instruction_list.size() - 1);
         }
 };
 
@@ -156,12 +160,16 @@ public:
 class SleepInstruction : public Instruction {
 private:
     uint8_t remaining_ticks;
+    uint8_t original_ticks;
     SleepState state;
 public:
-    SleepInstruction(uint8_t ticks); 
+    SleepInstruction(uint8_t ticks)
+        : remaining_ticks(ticks), original_ticks(ticks), state(SleepState::AWAKE)
+    {}
     // Returns true if should log, false if not (might refactor if execution actually does something in the future)
     bool execute(Process& context, LogEntry& log) override;
     bool is_completed() const override;
+    void reset() override;
 };
 
 // FOR([instructions], repeats) -> Nesting supported!
@@ -182,6 +190,7 @@ public:
 
     bool execute(Process& context, LogEntry& log) override;
     bool is_completed() const override;
+    void reset() override;
 };
 
 // Helper funtions

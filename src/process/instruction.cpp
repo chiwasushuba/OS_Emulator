@@ -73,11 +73,11 @@ bool ForInstruction::execute(Process& context, LogEntry& log) {
     }
 
     std::stringstream ss;
-    ss << "Loop iteration " << currentIteration << "/" << repeatCount;
-
+    
     // Get the current sub-instruction to run on this CPU tick
     auto& currentInst = nestedInstructions[currentInstructionIndex];    
     bool instLogged = currentInst->execute(context, log);
+    
 
     // If the nested instruction is finished, advance our pointers
     if (currentInst->is_completed()) {
@@ -88,11 +88,16 @@ bool ForInstruction::execute(Process& context, LogEntry& log) {
         if (currentInstructionIndex >= nestedInstructions.size()) {
             currentInstructionIndex = 0; // Reset to start of block
             currentIteration++;
-            
+
             // Log when a loop iteration finishes
-            ss << " complete.";
+            ss << "Loop iteration " << currentIteration << "/" << repeatCount << " complete.";
             log.message = ss.str();
             instLogged = true; 
+            
+            // reset nested FOR and SLEEP (stateful instructions)
+            for (auto& inst : nestedInstructions) {
+                inst->reset();
+            }
         }
     }
 
@@ -108,16 +113,25 @@ bool ForInstruction::is_completed() const {
     return this->completed;
 }
 
-SleepInstruction::SleepInstruction(uint8_t ticks) : remaining_ticks(ticks) {
-    this->state = SleepState::AWAKE;
-} 
+void ForInstruction::reset()
+{
+    currentIteration = 0;
+    currentInstructionIndex = 0;
+    completed = false;
+
+    for (auto& inst : nestedInstructions)
+    {
+        inst->reset();
+    }
+}
 
 bool SleepInstruction::execute(Process& context, LogEntry& log) {
     std::stringstream ss;
 
     if (state == SleepState::AWAKE) {
         state = SleepState::SLEEPING;
-        ss << "Sleep started for " << remaining_ticks << " ticks";
+        log.event_type = LogEventType::LOG;
+        ss << "Sleep started for " << (int)original_ticks << " ticks";
         log.message = ss.str();
         return true;
     }
@@ -139,5 +153,10 @@ bool SleepInstruction::execute(Process& context, LogEntry& log) {
 
 bool SleepInstruction::is_completed() const {
     return this->remaining_ticks == 0 && state == SleepState::AWAKE;
+}
+
+void SleepInstruction::reset() {
+    remaining_ticks = original_ticks;
+    state = SleepState::AWAKE;
 }
 
