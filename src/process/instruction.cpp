@@ -70,16 +70,16 @@ bool ForInstruction::execute(Process& context, LogEntry& log) {
     }
 
     std::stringstream ss;
+    ss << "Loop iteration " << currentIteration << "/" << repeatCount;
 
     // Get the current sub-instruction to run on this CPU tick
-    auto& currentInst = nestedInstructions[currentInstructionIndex];
-    
-    // Execute it. It modifies the shared log message
+    auto& currentInst = nestedInstructions[currentInstructionIndex];    
     bool instLogged = currentInst->execute(context, log);
 
     // If the nested instruction is finished, advance our pointers
     if (currentInst->is_completed()) {
         currentInstructionIndex++;
+        log.event_type = LogEventType::INSTRUCTION_FINISHED;
         
         // If we finished all instructions in the block, complete one loop iteration
         if (currentInstructionIndex >= nestedInstructions.size()) {
@@ -87,7 +87,7 @@ bool ForInstruction::execute(Process& context, LogEntry& log) {
             currentIteration++;
             
             // Log when a loop iteration finishes
-            ss << "Loop iteration " << currentIteration << "/" << repeatCount << " complete.";
+            ss << " complete.";
             log.message = ss.str();
             instLogged = true; 
         }
