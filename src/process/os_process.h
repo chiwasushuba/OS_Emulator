@@ -13,6 +13,11 @@ enum class ProcessState {
     FINISHED
 };
 
+enum class SleepState {
+    SLEEPING,
+    AWAKE
+};
+
 // Logging the snapshot of a process
 struct LogEntry {
     int pid;
@@ -43,7 +48,7 @@ class Instruction {
         virtual ~Instruction() = default;
         // Pass the process as a context, so that it can access the process data for logs
         // returns logentry since it "simulated" an operation
-        virtual LogEntry execute(Process& context) = 0; 
+        virtual bool execute(Process& context, LogEntry& log); 
         
         // Most basic instructions complete in 1 step, but SLEEP or FOR might take longer, thus needing parameter tracking
         virtual bool is_completed() const { return true; };
@@ -52,16 +57,16 @@ class Instruction {
 // Process Control Block PCB, no need for mutex since there would be only one universal scheduler
 class Process {
     private:
-        int current_instruction = 0;
         std::vector<std::unique_ptr<Instruction>> instruction_list;
     
-        public: // public for easier manipulation by the scheduler
+    public: // public for easier manipulation by the scheduler
+        int current_instruction = 0;
         int id = -1;
         int core_id = -1;
         ProcessState state = ProcessState::READY;
         std::string process_name;
         
-        LogEntry execute_next_instruction();    // should call logging
+        bool execute_next_instruction();    // should, LogEntry& log call logging
         
         void add_instruction(std::unique_ptr<Instruction> new_instruction);
 
@@ -83,33 +88,33 @@ public:
     DeclareInstruction(std::string var_name, uint16_t val) 
         : var(var_name), value(val) {};
 
-    LogEntry execute(Process& context) override;
+    bool execute(Process& context, LogEntry& log) override;
 };
 
 // ADD(var1, var2/value, var3/value)
 class AddInstruction : public Instruction {
 private:
-    uint16_t var_1;
-    uint16_t var_2;
-    uint16_t var_3;
+    uint16_t var_1 = 0;
+    uint16_t var_2 = 0;
+    uint16_t var_3 = 0;
 public:
     AddInstruction(uint16_t t, uint16_t s1, uint16_t s2) 
         : var_1(t), var_2(s1), var_3(s2) {};
 
-    LogEntry execute(Process& context) override;
+    bool execute(Process& context, LogEntry& log) override;
 };
 
 // SUBTRACT(var1, var2/value, var3/value)
 class SubtractInstruction : public Instruction {
 private:
-    uint16_t var_1;
-    uint16_t var_2;
-    uint16_t var_3;
+    uint16_t var_1 = 0;
+    uint16_t var_2 = 0;
+    uint16_t var_3 = 0;
 public:
     SubtractInstruction(uint16_t t, uint16_t s1, uint16_t s2) 
         : var_1(t), var_2(s1), var_3(s2) {}
 
-    LogEntry execute(Process& context) override;
+    bool execute(Process& context, LogEntry& log) override;
 };
 
 // PRINT(msg)
@@ -120,17 +125,19 @@ public:
     PrintInstruction(std::string message) 
         : msg(message) {}
 
-    LogEntry execute(Process& context) override;  
+    bool execute(Process& context, LogEntry& log) override;  
 };
 
 // SLEEP(X)
 class SleepInstruction : public Instruction {
 private:
     uint8_t remaining_ticks;
+    SleepState state;
 public:
     SleepInstruction(uint8_t ticks)
-        : remaining_ticks(ticks) {}; 
-    LogEntry execute(Process& context) override;
+        : remaining_ticks(ticks), state(SleepState::AWAKE) {}; 
+    // Returns true if should log, false if not (might refactor if execution actually does something in the future)
+    bool execute(Process& context, LogEntry& log) override;
     bool is_completed() const override;
 };
 
@@ -143,6 +150,6 @@ public:
     ForInstruction(std::vector<std::unique_ptr<Instruction>> insts, uint16_t repeats)
         : nestedInstructions(std::move(insts)), repeatCount(repeats) {};
 
-    LogEntry execute(Process& context) override;
+    bool execute(Process& context, LogEntry& log) override;
     bool is_completed() const override;
 };
