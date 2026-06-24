@@ -17,8 +17,7 @@ int ProcessManager::create_process(const std::string& name) {
 Process* ProcessManager::get_process(int pid) {
     auto it = processes.find(pid);
 
-    if (it == processes.end())
-    {
+    if (it == processes.end()) {
         return nullptr;
     }
 
@@ -29,8 +28,7 @@ Process* ProcessManager::get_process(int pid) {
 std::vector<int> ProcessManager::get_active_pids() const {
     std::vector<int> pids;
 
-    for (const auto& [pid, process] : processes)
-    {
+    for (const auto& [pid, process] : processes) {
         pids.push_back(pid);
     }
 
