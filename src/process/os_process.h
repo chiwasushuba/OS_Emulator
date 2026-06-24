@@ -48,7 +48,7 @@ class Instruction {
         virtual ~Instruction() = default;
         // Pass the process as a context, so that it can access the process data for logs
         // returns logentry since it "simulated" an operation
-        virtual bool execute(Process& context, LogEntry& log); 
+        virtual bool execute(Process& context, LogEntry& log) = 0; 
         
         // Most basic instructions complete in 1 step, but SLEEP or FOR might take longer, thus needing parameter tracking
         virtual bool is_completed() const { return true; };
@@ -146,9 +146,16 @@ class ForInstruction : public Instruction {
 private:
     std::vector<std::unique_ptr<Instruction>> nestedInstructions;
     uint16_t repeatCount;
+    
+    // State tracking variables for multi-tick step execution
+    uint16_t currentIteration = 0;
+    size_t currentInstructionIndex = 0;
+    bool completed = false;
+
 public:
     ForInstruction(std::vector<std::unique_ptr<Instruction>> insts, uint16_t repeats)
-        : nestedInstructions(std::move(insts)), repeatCount(repeats) {};
+        : nestedInstructions(std::move(insts)), repeatCount(repeats), 
+          currentIteration(0), currentInstructionIndex(0), completed(false) {};
 
     bool execute(Process& context, LogEntry& log) override;
     bool is_completed() const override;
