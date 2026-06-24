@@ -1,6 +1,7 @@
 add_library(core
     process_generator.cpp
     report_generator.cpp
+    process_viewer.cpp
 )
 
 target_include_directories(core

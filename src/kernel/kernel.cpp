@@ -29,7 +29,10 @@ void Kernel::main_loop() {
         
         curr_cycle++;
         std::cout << "Tick " << curr_cycle << "\n";
-        if (curr_cycle > 100) {
+        if (curr_cycle > 50) {
+            ProcessViewer view = ProcessViewer(this->process_manager, this->process_logger);
+            view.list_processes();
+            view.print_log(1);
             this->is_running = false;
         }
     }
@@ -55,7 +58,7 @@ void Kernel::start() {
     std::cout << "max_ins:\t\t" << config.max_ins << "\n";
     std::cout << "delays_per_exec:\t" << config.delays_per_exec << "\n";
     
-    Process* test_job = create_dummy_test_process(this->process_manager, "TestApp_v1");
+    Process* test_job = create_dummy_test_process(this->process_manager, "test_process");
 
     // Grab core 0 by reference and assign the process to it
     if (!cpu_manager->get_cores().empty()) {

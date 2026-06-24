@@ -24,7 +24,7 @@ void CPUManager::tick(std::function<void(const LogEntry&)> raise_interrupt) {
         LogEntry log;
         core.tick(log);
 
-        if (log.event_type == LogEventType::INSTRUCTION_FINISHED) {
+        if (log.event_type == LogEventType::INSTRUCTION_FINISHED || log.event_type == LogEventType::LOG) {
             raise_interrupt(log); 
         }
     }
