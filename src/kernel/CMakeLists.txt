@@ -8,7 +8,7 @@ target_include_directories(kernel
 )
 
 target_link_libraries(kernel
-    PRIVATE
+    PUBLIC
     cli
     core
     cpu
