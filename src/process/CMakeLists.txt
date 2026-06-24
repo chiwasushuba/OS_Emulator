@@ -1,5 +1,7 @@
 add_library(process
     process.cpp
+    logger.cpp
+    instruction.cpp
 )
 
 target_include_directories(process

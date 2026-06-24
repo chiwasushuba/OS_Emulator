@@ -28,6 +28,7 @@ void initialize_entry(Process& context, LogEntry& log) {
     log.process_name = context.process_name;
     log.timestamp = get_current_time();
     log.total_instructions = context.total_instructions();
+    log.event_type = LogEventType::NONE;
 }
 
 bool AddInstruction::execute(Process& context, LogEntry& log) {
