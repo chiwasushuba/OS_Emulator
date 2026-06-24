@@ -66,7 +66,7 @@ class Process {
         ProcessState state = ProcessState::READY;
         std::string process_name;
         
-        bool execute_next_instruction();    // should, LogEntry& log call logging
+        bool execute_next_instruction(LogEntry& log);    // should, LogEntry& log call logging
         
         void add_instruction(std::unique_ptr<Instruction> new_instruction);
 
@@ -160,3 +160,7 @@ public:
     bool execute(Process& context, LogEntry& log) override;
     bool is_completed() const override;
 };
+
+// Helper funtions
+void initialize_entry(Process& context, LogEntry& log);
+std::string get_current_time();
