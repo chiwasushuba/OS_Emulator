@@ -7,6 +7,7 @@ class Kernel {
         void main_loop();
         std::unique_ptr<CPUManager> cpu_manager = nullptr;
         ProcessLogger process_logger;
+        ProcessManager process_manager;
     public:
         Kernel();
         void start();

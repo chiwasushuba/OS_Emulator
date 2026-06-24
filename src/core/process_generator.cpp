@@ -11,11 +11,10 @@
  * @param name A descriptive string name for the process.
  * @return Process* Pointer to the constructed process (stored on the heap).
  */
-Process* create_dummy_test_process(int pid, const std::string& name) {
+Process* create_dummy_test_process(ProcessManager& pm, const std::string& name) {
     // 1. Instantiate the base Process object on the heap
-    Process* proc = new Process();
-    proc->id = pid;
-    proc->process_name = name;
+    int pid = pm.create_process(name);
+    Process* proc = pm.get_process(pid);
     proc->state = ProcessState::READY;
     proc->current_instruction = 0;
 

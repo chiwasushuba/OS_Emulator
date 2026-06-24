@@ -55,7 +55,7 @@ void Kernel::start() {
     std::cout << "max_ins:\t\t" << config.max_ins << "\n";
     std::cout << "delays_per_exec:\t" << config.delays_per_exec << "\n";
     
-    Process* test_job = create_dummy_test_process(101, "TestApp_v1");
+    Process* test_job = create_dummy_test_process(this->process_manager, "TestApp_v1");
 
     // Grab core 0 by reference and assign the process to it
     if (!cpu_manager->get_cores().empty()) {

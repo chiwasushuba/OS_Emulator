@@ -6,6 +6,8 @@
 #include <mutex>
 #include <memory>
 
+class Process;
+
 enum class ProcessState {
     READY,
     RUNNING,
@@ -20,7 +22,8 @@ enum class SleepState {
 
 enum class LogEventType {
     NONE,
-    INSTRUCTION_FINISHED
+    INSTRUCTION_FINISHED,
+    PROCESS_STARTED
 };
 
 // Logging the snapshot of a process
@@ -35,6 +38,20 @@ struct LogEntry {
     LogEventType event_type = LogEventType::NONE;
 };
 
+// Creates and owns all processes
+class ProcessManager {
+private:
+    std::unordered_map<int, std::unique_ptr<Process>> processes;
+    int next_pid = 1;
+public:
+    // Creates a new process object, adds it to the process map, and returns the pid
+    int create_process(const std::string& name);
+    // Get process pointer (nullptr if not found)
+    Process* get_process(int pid);
+    // Get all active PIDs for screen -ls
+    std::vector<int> get_active_pids() const;
+};
+
 // Gets called by core component to generate reports
 class ProcessLogger {
     private:
@@ -45,8 +62,6 @@ class ProcessLogger {
         std::vector<LogEntry> get_logs(int process_id); // get logs for a pid
         std::vector<int> get_process_ids(); // Returns list of all unique process ids in logger
 };
-
-class Process;
 
 // Instruction base class
 class Instruction {
