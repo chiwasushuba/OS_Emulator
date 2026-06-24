@@ -18,15 +18,21 @@ enum class SleepState {
     AWAKE
 };
 
+enum class LogEventType {
+    NONE,
+    INSTRUCTION_FINISHED
+};
+
 // Logging the snapshot of a process
 struct LogEntry {
-    int pid;
-    int core_id;
-    int current_instruction;
-    int total_instructions;
-    std::string timestamp;
-    std::string message;
-    std::string process_name;
+    int pid = -1;
+    int core_id = -1;
+    int current_instruction = 0;
+    int total_instructions = 0;
+    std::string timestamp = "";
+    std::string message = "";
+    std::string process_name = "";
+    LogEventType event_type = LogEventType::NONE;
 };
 
 // Gets called by core component to generate reports
@@ -134,8 +140,7 @@ private:
     uint8_t remaining_ticks;
     SleepState state;
 public:
-    SleepInstruction(uint8_t ticks)
-        : remaining_ticks(ticks), state(SleepState::AWAKE) {}; 
+    SleepInstruction(uint8_t ticks); 
     // Returns true if should log, false if not (might refactor if execution actually does something in the future)
     bool execute(Process& context, LogEntry& log) override;
     bool is_completed() const override;
