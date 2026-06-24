@@ -13,24 +13,38 @@ int ProcessManager::create_process(const std::string& name) {
     return pid;
 }
 
-
 Process* ProcessManager::get_process(int pid) {
     auto it = processes.find(pid);
-
     if (it == processes.end()) {
         return nullptr;
     }
-
     return it->second.get();
 }
 
-
 std::vector<int> ProcessManager::get_active_pids() const {
     std::vector<int> pids;
+    for (const auto& [pid, process] : processes) {
+        if (process->state != ProcessState::FINISHED) {
+            pids.push_back(pid);
+        }
+    }
+    return pids;
+}
 
+std::vector<int> ProcessManager::get_finished_pids() const {
+    std::vector<int> pids;
+    for (const auto& [pid, process] : processes) {
+        if (process->state == ProcessState::FINISHED) {
+            pids.push_back(pid);
+        }
+    }
+    return pids;
+}
+
+std::vector<int> ProcessManager::get_all_pids() const {
+    std::vector<int> pids;
     for (const auto& [pid, process] : processes) {
         pids.push_back(pid);
     }
-
     return pids;
 }

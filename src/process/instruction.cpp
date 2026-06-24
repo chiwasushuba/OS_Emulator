@@ -50,7 +50,10 @@ bool SubtractInstruction::execute(Process& context, LogEntry& log) {
 
 bool PrintInstruction::execute(Process& context, LogEntry& log) {
     std::stringstream ss;
-    ss << "Hello world from " << log.process_name;
+    ss << this->msg;
+    if (this->x != "") {
+        ss << " " << this->x;
+    }
     log.message = ss.str();
     return true;
 }

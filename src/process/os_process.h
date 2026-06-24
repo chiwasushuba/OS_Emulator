@@ -50,6 +50,8 @@ public:
     Process* get_process(int pid);
     // Get all active PIDs for screen -ls
     std::vector<int> get_active_pids() const;
+    std::vector<int> get_finished_pids() const;
+    std::vector<int> get_all_pids() const;
 };
 
 // Gets called by core component to generate reports
@@ -142,9 +144,10 @@ public:
 class PrintInstruction : public Instruction {
 private:
     std::string msg;
+    std::string x;
 public:
-    PrintInstruction(std::string message) 
-        : msg(message) {}
+    PrintInstruction(std::string message, std::string var="") 
+        : msg(message), x(var) {}
 
     bool execute(Process& context, LogEntry& log) override;  
 };
