@@ -4,7 +4,7 @@ add_library(scheduler
     round_robin.cpp
 )
 
-target_include_directories(process
+target_include_directories(scheduler
     PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
