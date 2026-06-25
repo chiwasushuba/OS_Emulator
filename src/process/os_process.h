@@ -102,7 +102,7 @@ class Process {
         }
 
         bool is_finished() const {
-            return current_instruction >= (instruction_list.size() - 1);
+            return current_instruction >= (instruction_list.size());
         }
 };
 

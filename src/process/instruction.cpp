@@ -89,10 +89,22 @@ bool ForInstruction::execute(Process& context, LogEntry& log) {
             currentInstructionIndex = 0; // Reset to start of block
             currentIteration++;
 
+            if (!log.message.empty()) {
+                log.message += " | ";
+            }
+
+            ss << "Loop iteration "
+            << currentIteration
+            << "/"
+            << repeatCount
+            << " complete.";
+
+            log.message += ss.str();
+
             // Log when a loop iteration finishes
-            ss << "Loop iteration " << currentIteration << "/" << repeatCount << " complete.";
-            log.message = ss.str();
-            instLogged = true; 
+            // ss << "Loop iteration " << currentIteration << "/" << repeatCount << " complete.";
+            // log.message = ss.str();
+            // instLogged = true; 
             
             // reset nested FOR and SLEEP (stateful instructions)
             for (auto& inst : nestedInstructions) {

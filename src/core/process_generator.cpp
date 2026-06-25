@@ -5,12 +5,46 @@
 #include <vector>
 #include "os_process.h"
 
+Process* test_for_loop(ProcessManager& pm, const std::string& name) {
+    int pid = pm.create_process(name);
+    Process* proc = pm.get_process(pid);
+    proc->state = ProcessState::READY;
+    proc->current_instruction = 0;
+    
+    // 3. Build instructions to inject inside the FOR loop
+    std::vector<std::unique_ptr<Instruction>> loop_body;
+    loop_body.push_back(std::make_unique<AddInstruction>(1, 1, 5)); // Add to register/variable
+    loop_body.push_back(std::make_unique<PrintInstruction>("Loop cycle executed. Delaying."));
+    loop_body.push_back(std::make_unique<SleepInstruction>(2));     // Sleep for 2 ticks inside the loop
+
+    // 4. Wrap the loop body instructions inside a ForInstruction (runs 3 times)
+    proc->add_instruction(std::make_unique<ForInstruction>(std::move(loop_body), 3));
+    return proc;
+}
+
+Process* test_nested_for_loops(ProcessManager& pm, const std::string& name) {
+    int pid = pm.create_process(name);
+    Process* proc = pm.get_process(pid);
+    proc->state = ProcessState::READY;
+    proc->current_instruction = 0;
+
+    std::vector<std::unique_ptr<Instruction>> outer_loop;
+    std::vector<std::unique_ptr<Instruction>> inner_loop;
+    
+    outer_loop.push_back(std::make_unique<PrintInstruction>("OUTER LOOP PRINT"));
+    inner_loop.push_back(std::make_unique<PrintInstruction>("INNER LOOP PRINT"));
+    outer_loop.push_back(std::make_unique<ForInstruction>(std::move(inner_loop), 3));
+    proc->add_instruction(std::make_unique<ForInstruction>(std::move(outer_loop), 3));
+
+    return proc;
+}    
+
 /**
  * Creates a dynamically allocated test process filled with a variety of instructions.
  * * @param pid The process ID to assign.
  * @param name A descriptive string name for the process.
  * @return Process* Pointer to the constructed process (stored on the heap).
- */
+ */ 
 Process* create_dummy_test_process(ProcessManager& pm, const std::string& name) {
     // 1. Instantiate the base Process object on the heap
     int pid = pm.create_process(name);

@@ -17,4 +17,7 @@ public:
     void print_log(int pid);
 };
 
+
+Process* test_for_loop(ProcessManager& pm, const std::string& name);
+Process* test_nested_for_loops(ProcessManager& pm, const std::string& name);
 Process* create_dummy_test_process(ProcessManager& pm, const std::string& name);

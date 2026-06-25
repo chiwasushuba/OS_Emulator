@@ -10,6 +10,7 @@ Kernel::Kernel() {
 
 void Kernel::handle_logging(const LogEntry& log) {
     this->process_logger.append(log.pid, log);
+    std::cout << "\n------------------HANDLE LOGGING------------------\n";
     std::cout << "log.pid: " << log.pid << "\n";
     std::cout << "log.core_id: " << log.core_id << "\n";
     std::cout << "log.current_instruction: " << log.current_instruction << "\n";
@@ -29,10 +30,16 @@ void Kernel::main_loop() {
         
         curr_cycle++;
         std::cout << "Tick " << curr_cycle << "\n";
+        if (curr_cycle == 25) {
+            Process* for_process = test_nested_for_loops(this->process_manager, "TEST NESTED FOR LOOPS");
+            cpu_manager->get_cores()[0].assign_process(for_process);
+        }
         if (curr_cycle > 50) {
             ProcessViewer view = ProcessViewer(this->process_manager, this->process_logger);
             view.list_processes();
             view.print_log(1);
+            view.print_log(2);
+            view.print_log(3);
             this->is_running = false;
         }
     }
@@ -58,13 +65,17 @@ void Kernel::start() {
     std::cout << "max_ins:\t\t" << config.max_ins << "\n";
     std::cout << "delays_per_exec:\t" << config.delays_per_exec << "\n";
     
-    Process* test_job = create_dummy_test_process(this->process_manager, "test_process");
+    Process* test_job1 = test_for_loop(this->process_manager, "test_FOR_LOOP");
+    Process* test_job2 = create_dummy_test_process(this->process_manager, "test_process");
 
     // Grab core 0 by reference and assign the process to it
     if (!cpu_manager->get_cores().empty()) {
-        cpu_manager->get_cores()[0].assign_process(test_job);
-        std::cout << "Successfully assigned " << test_job->process_name 
-                  << " (PID: " << test_job->id << ") to Core 0!\n";
+        cpu_manager->get_cores()[0].assign_process(test_job1);
+        std::cout << "Successfully assigned " << test_job1->process_name 
+                  << " (PID: " << test_job1->id << ") to Core 0!\n";
+        cpu_manager->get_cores()[1].assign_process(test_job2);
+        std::cout << "Successfully assigned " << test_job2->process_name 
+                  << " (PID: " << test_job2->id << ") to Core 1!\n";
     }
 
     std::thread clock_thread(&Kernel::main_loop, this);

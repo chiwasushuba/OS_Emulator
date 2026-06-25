@@ -16,7 +16,7 @@ void format_finished_entry(std::stringstream& ss, Process* process) {
         ss << process->process_name << "\t";
         ss << "(" << get_current_time() << ")\t";
         ss << "Finished\t";
-        ss << process->current_instruction+1 << " / " << process->total_instructions() << "\n";
+        ss << process->current_instruction << " / " << process->total_instructions() << "\n";
 }
 
 void ProcessViewer::list_processes() {
@@ -65,7 +65,7 @@ void ProcessViewer::print_log(int pid) {
     auto logs = logger.get_logs(pid);
     Process* process = process_manager.get_process(pid);
 
-    std::cout << "Process name: " << process->process_name << "\n";
+    std::cout << "\n\nProcess name: " << process->process_name << "\n";
     std::cout << "ID: " << process->id << "\n";
     std::cout << "Logs:\n";
     for (const auto& entry : logs) {
@@ -76,6 +76,6 @@ void ProcessViewer::print_log(int pid) {
         std::cout << log_string.str();
     }
 
-    std::cout << "Current instruction line: " << process->current_instruction+1 << "\n";
+    std::cout << "\nCurrent instruction line: " << process->current_instruction << "\n";
     std::cout << "Lines of code: " << process->total_instructions() << "\n";
 }
