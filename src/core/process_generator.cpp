@@ -11,14 +11,50 @@ Process* test_for_loop(ProcessManager& pm, const std::string& name) {
     proc->state = ProcessState::READY;
     proc->current_instruction = 0;
     
-    // 3. Build instructions to inject inside the FOR loop
     std::vector<std::unique_ptr<Instruction>> loop_body;
     loop_body.push_back(std::make_unique<AddInstruction>(1, 1, 5)); // Add to register/variable
     loop_body.push_back(std::make_unique<PrintInstruction>("Loop cycle executed. Delaying."));
     loop_body.push_back(std::make_unique<SleepInstruction>(2));     // Sleep for 2 ticks inside the loop
 
-    // 4. Wrap the loop body instructions inside a ForInstruction (runs 3 times)
     proc->add_instruction(std::make_unique<ForInstruction>(std::move(loop_body), 3));
+    return proc;
+}
+
+Process* test_deep_for_loops(ProcessManager& pm, const std::string& name) {
+    int pid = pm.create_process(name);
+    Process* proc = pm.get_process(pid);
+    proc->state = ProcessState::READY;
+    proc->current_instruction = 0;
+
+    // Deepest level
+    std::vector<std::unique_ptr<Instruction>> level4;
+    level4.push_back(
+        std::make_unique<PrintInstruction>("LEVEL 4 EXECUTED")
+    );
+
+    // Level 3
+    std::vector<std::unique_ptr<Instruction>> level3;
+    level3.push_back(
+        std::make_unique<ForInstruction>(std::move(level4), 3)
+    );
+
+    // Level 2
+    std::vector<std::unique_ptr<Instruction>> level2;
+    level2.push_back(
+        std::make_unique<ForInstruction>(std::move(level3), 3)
+    );
+
+    // Level 1
+    std::vector<std::unique_ptr<Instruction>> level1;
+    level1.push_back(
+        std::make_unique<ForInstruction>(std::move(level2), 3)
+    );
+
+    // Root loop
+    proc->add_instruction(
+        std::make_unique<ForInstruction>(std::move(level1), 3)
+    );
+
     return proc;
 }
 

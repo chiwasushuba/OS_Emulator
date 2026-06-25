@@ -34,6 +34,7 @@ void initialize_entry(Process& context, LogEntry& log) {
 bool AddInstruction::execute(Process& context, LogEntry& log) {
     this->var_1 = this->var_2 + this->var_3;
     std::stringstream ss;
+    ss << std::right << std::setw(10) << "ADD: ";
     ss << this->var_1 << " = " << this->var_2 << " + " << this->var_3;
     log.message = ss.str();
     return true;
@@ -43,6 +44,7 @@ bool SubtractInstruction::execute(Process& context, LogEntry& log) {
     this->var_1 = this->var_2 - this->var_3;
     
     std::stringstream ss;
+    ss << std::right << std::setw(10) << "SUBTRACT: ";
     ss << this->var_1 << " = " << this->var_2 << " - " << this->var_3;
     log.message = ss.str();
     return true;
@@ -50,6 +52,7 @@ bool SubtractInstruction::execute(Process& context, LogEntry& log) {
 
 bool PrintInstruction::execute(Process& context, LogEntry& log) {
     std::stringstream ss;
+    ss << std::right << std::setw(10) << "PRINT: ";
     ss << this->msg;
     if (this->x != "") {
         ss << " " << this->x;
@@ -60,6 +63,7 @@ bool PrintInstruction::execute(Process& context, LogEntry& log) {
 
 bool DeclareInstruction::execute(Process& context, LogEntry& log) {
     std::stringstream ss;
+    ss << std::right << std::setw(10) << "DECLARE: ";
     ss << "Declared var " << this->var << " with value " << this->value;
     log.message = ss.str();
     return true;
@@ -73,7 +77,11 @@ bool ForInstruction::execute(Process& context, LogEntry& log) {
     }
 
     std::stringstream ss;
-    
+    std::stringstream header;
+    std::stringstream splitter;
+    header << std::right << std::setw(10) << "FOR:\n";
+    splitter << std::right << std::setw(35) << "";
+
     // Get the current sub-instruction to run on this CPU tick
     auto& currentInst = nestedInstructions[currentInstructionIndex];    
     bool instLogged = currentInst->execute(context, log);
@@ -83,28 +91,23 @@ bool ForInstruction::execute(Process& context, LogEntry& log) {
     if (currentInst->is_completed()) {
         currentInstructionIndex++;
         log.event_type = LogEventType::INSTRUCTION_FINISHED;
-        
+
         // If we finished all instructions in the block, complete one loop iteration
         if (currentInstructionIndex >= nestedInstructions.size()) {
             currentInstructionIndex = 0; // Reset to start of block
             currentIteration++;
-
+            
             if (!log.message.empty()) {
-                log.message += " | ";
+                log.message += "\n";
             }
 
-            ss << "Loop iteration "
+            ss << std::right << std::setw(10) << "IT: "
             << currentIteration
             << "/"
-            << repeatCount
-            << " complete.";
+            << repeatCount;
 
-            log.message += ss.str();
+            log.message = header.str() + splitter.str() + log.message + splitter.str() + ss.str();
 
-            // Log when a loop iteration finishes
-            // ss << "Loop iteration " << currentIteration << "/" << repeatCount << " complete.";
-            // log.message = ss.str();
-            // instLogged = true; 
             
             // reset nested FOR and SLEEP (stateful instructions)
             for (auto& inst : nestedInstructions) {
@@ -139,6 +142,7 @@ void ForInstruction::reset()
 
 bool SleepInstruction::execute(Process& context, LogEntry& log) {
     std::stringstream ss;
+    ss << std::right << std::setw(10) << "SLEEP: ";
 
     if (state == SleepState::AWAKE) {
         state = SleepState::SLEEPING;
