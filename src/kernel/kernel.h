@@ -38,6 +38,7 @@ class Kernel {
         std::unique_ptr<CPUManager> cpu_manager = nullptr;
         ProcessLogger process_logger;
         ProcessManager process_manager;
+        std::unique_ptr<Console> console = nullptr;
         std::unique_ptr<Scheduler> scheduler = nullptr;
         std::thread clock_thread;
 

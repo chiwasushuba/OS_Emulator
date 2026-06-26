@@ -3,6 +3,7 @@
 #include "config.h"
 #include "kernel.h"
 #include "core.h"
+#include "os_process.h"
 
 Kernel::Kernel() {
     this->is_running.store(false);
@@ -84,10 +85,10 @@ void Kernel::start() {
 
     // Build the CLI chain: CommandHandler -> Console
     CommandHandler handler(this);
-    Console console(&handler);
+    this->console = std::make_unique<Console>(&handler);
 
     // Run the blocking CLI on the main thread
-    console.run();
+    this->console->run();
 
     // CLI exited — wait for the clock thread to finish
     if (this->clock_thread.joinable()) {
@@ -138,10 +139,17 @@ void Kernel::handle_command(const CommandPacket& packet) {
 
 void Kernel::execute_screen_subsystem(ScreenAction action, const std::string& payload) {
     // TODO: IMPLEMENT
+    if (action != ScreenAction::NONE || action != ScreenAction::LIST) {
+        this->console->clearScreen();
+    }
     switch (action) {
         case ScreenAction::LIST:   /* screen_manager->list(); */ break;
         case ScreenAction::CREATE: /* screen_manager->create(payload); */ break;
-        case ScreenAction::READ: /* screen_manager->read(payload); */ break;
+            Process* created_process = process_generator.get()->generate_one_process();
+            created_process->process_name = payload;
+        case ScreenAction::READ:
+            process_manager
+            break;
         default: std::cout << "Error: Invalid screen action packet.\n"; break;
     }
 }
