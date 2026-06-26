@@ -27,4 +27,7 @@ class Kernel {
         // Called by scheduler-start / scheduler-stop CLI commands
         void start_scheduler();
         void stop_scheduler();
+
+        //Triggered by the report-util command 
+        void generate_report_file();
 };
