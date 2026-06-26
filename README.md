@@ -41,3 +41,5 @@ The `LogEventType` field is particularly important because it allows the `CPUMan
 
 ### Scheduler implementation
 - TODO
+
+# Instructions on how to run

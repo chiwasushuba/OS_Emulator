@@ -6,10 +6,13 @@
 #include <string>
 
 class Kernel;
+class Console;
 
 class Commands {
 public:
     explicit Commands(Kernel* kernel);
+
+    void setConsole(Console* console);
 
     void initialize();
     void exit();
@@ -25,4 +28,5 @@ public:
 
 private:
     Kernel* kernel_;
-};
+    Console* console_ = nullptr;
+};
