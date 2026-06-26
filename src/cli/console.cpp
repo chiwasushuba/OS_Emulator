@@ -37,3 +37,7 @@ void Console::run() {
 void Console::stop() {
     running_.store(false);
 }
+
+void Console::clearScreen() {
+    handler_->clearScreen();
+}

@@ -54,6 +54,14 @@ void CommandHandler::help() {
               << "  help                 - Display this help message\n";
 }
 
+void CommandHandler::clearScreen() {
+    #ifdef _WIN32
+        system("CLS");
+    #else
+        system("clear");
+    #endif
+}
+
 bool CommandHandler::handleCommand(const std::string& input) {
     std::vector<std::string> tokens = tokenize(input);
 
@@ -67,11 +75,7 @@ bool CommandHandler::handleCommand(const std::string& input) {
     // Special case, only involves the screen not the kernel.
     const std::string& cmd = tokens[0];
     if (cmd == "clear") {
-        #ifdef _WIN32
-            system("CLS");
-        #else
-            system("clear");
-        #endif
+        clearScreen();
     }
     else if (cmd == "help") {
         help();

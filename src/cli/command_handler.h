@@ -24,7 +24,10 @@ private:
     bool executeCommand(const std::vector<std::string>& tokens);
 
     void help();
+    
 public:
+    
+    void clearScreen();
     // constructor
     explicit CommandHandler(Kernel* kernel)
         : kernel_(kernel) {}

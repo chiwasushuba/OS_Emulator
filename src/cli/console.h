@@ -16,6 +16,9 @@ public:
     // terminate console (running=false)
     void stop();
 
+    // clear console screen
+    void clearScreen();
+
 private:
     CommandHandler* handler_;
 
