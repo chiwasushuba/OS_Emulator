@@ -53,7 +53,8 @@ void Commands::schedulerStop() {
 
 void Commands::reportUtil() {
     // TODO: Implement report-util
-    std::cout << "report-util (not yet implemented)\n";
+    //std::cout << "report-util (not yet implemented)\n";
+    kernel_->generate_report_file();
 }
 
 void Commands::help() {
