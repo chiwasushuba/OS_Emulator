@@ -22,11 +22,17 @@ public:
 
 private:
 
+    // tokenizes input string into a vector of strings based on whitespace
+    std::vector<std::string> tokenize(const std::string& input);
+
     // checks if the command is valid based on the tokens
     bool isValidCommand(const std::vector<std::string>& tokens);
 
-    // tokenizes input string into a vector of strings based on whitespace
-    std::vector<std::string> tokenize(const std::string& input);
+    // routes a validated command to the Commands layer
+    void executeCommand(const std::vector<std::string>& tokens);
+
+    // prints error for invalid commands
+    void printInvalidCommand() const;
 
     Commands* commands_;
 };
