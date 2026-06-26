@@ -138,7 +138,6 @@ void Kernel::handle_command(const CommandPacket& packet) {
 }
 
 void Kernel::execute_screen_subsystem(ScreenAction action, const std::string& payload) {
-    // TODO: IMPLEMENT
     if (action == ScreenAction::NONE) {
         return;
     }

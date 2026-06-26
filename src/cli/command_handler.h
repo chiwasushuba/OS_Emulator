@@ -1,7 +1,3 @@
-// TODO: Implement command handler
-// - validation
-// - switch handling
-
 #pragma once
 
 #include <string>

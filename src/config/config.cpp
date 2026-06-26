@@ -76,7 +76,7 @@ void loadConfig(const std::string& filename, Config& config) {
 
     std::string line;
 
-    // TODO: Add
+    // TODO: Check if these safeguards are enough.
     while (std::getline(file, line)) {
         if (line.empty())
             continue;

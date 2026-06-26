@@ -1,11 +1,6 @@
 #include <cstdint>
 #include "cpu.h"
 
-// TODO: Implement CPU manager
-// - ticks all CPU cores
-// Note: handled here instead of scheduler
-// - this enforces encapsulation
-
 CPUManager::CPUManager(int num_cores, uint64_t delay_per_exec)
     : num_cores(num_cores), delay_per_exec(delay_per_exec) 
 {
