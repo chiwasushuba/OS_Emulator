@@ -9,6 +9,12 @@ target_include_directories(cli
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# Include kernel headers (kernel links cli, so we can't link kernel here — just include)
+target_include_directories(cli
+    PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../kernel
+)
+
 target_link_libraries(cli
     PRIVATE
     core

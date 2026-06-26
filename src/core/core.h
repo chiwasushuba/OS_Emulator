@@ -1,7 +1,11 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <atomic>
+#include <cstdint>
+#include <random>
 #include "os_process.h"
+#include "config.h"
 
 class ProcessViewer {
 private:
@@ -15,6 +19,45 @@ public:
 
     void list_processes();
     void print_log(int pid);
+};
+
+class Scheduler;
+
+// Generates dummy processes at a configurable frequency, driven by CPU cycle ticks.
+// - scheduler-start sets generating_ = true
+// - scheduler-stop sets generating_ = false
+// - tick() is called once per CPU cycle from the kernel main loop
+class ProcessGenerator {
+private:
+    ProcessManager& process_manager;
+    Scheduler& scheduler;
+    const Config& config;
+
+    std::atomic<bool> generating_{false};
+    int next_process_number = 1;          // sequential counter for p01, p02, ...
+    uint64_t ticks_since_last_generate = 0;
+
+    std::mt19937 rng{std::random_device{}()};
+
+    // Builds a sequential name like "p01", "p02", ..., "p1240"
+    std::string make_process_name(int number) const;
+
+    // Creates a single dummy process with randomized PrintInstruction count
+    void generate_one_process();
+
+public:
+    ProcessGenerator(ProcessManager& pm, Scheduler& sched, const Config& cfg);
+
+    // Called by the kernel once per CPU cycle
+    void tick();
+
+    // Called by scheduler-start command
+    void start();
+
+    // Called by scheduler-stop command
+    void stop();
+
+    bool is_generating() const;
 };
 
 Process* test_deep_for_loops(ProcessManager& pm, const std::string& name);

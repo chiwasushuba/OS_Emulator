@@ -1,9 +1,14 @@
-// TODO: Implement Random Process Generation
+// Process generators: test helpers and the ProcessGenerator class for scheduler-start/stop
 
 #include <memory>
 #include <string>
 #include <vector>
+#include <iomanip>
+#include <sstream>
+#include <iostream>
 #include "os_process.h"
+#include "core.h"
+#include "scheduler.h"
 
 Process* test_for_loop(ProcessManager& pm, const std::string& name) {
     int pid = pm.create_process(name);
@@ -105,4 +110,84 @@ Process* create_dummy_test_process(ProcessManager& pm, const std::string& name) 
     proc->add_instruction(std::make_unique<PrintInstruction>("Simulation Complete. Core spinning down."));
 
     return proc;
+}
+
+// ============================================================================
+// ProcessGenerator — drives scheduler-start / scheduler-stop
+// ============================================================================
+
+ProcessGenerator::ProcessGenerator(ProcessManager& pm, Scheduler& sched, const Config& cfg)
+    : process_manager(pm), scheduler(sched), config(cfg)
+{}
+
+std::string ProcessGenerator::make_process_name(int number) const {
+    std::ostringstream oss;
+    // Determine minimum width: at least 2 digits (p01, p02, ..., p99, p100, ...)
+    int width = 2;
+    if (number >= 100)   width = 3;
+    if (number >= 1000)  width = 4;
+    if (number >= 10000) width = 5;
+
+    oss << "p" << std::setw(width) << std::setfill('0') << number;
+    return oss.str();
+}
+
+void ProcessGenerator::generate_one_process() {
+    std::string name = make_process_name(next_process_number++);
+
+    int pid = process_manager.create_process(name);
+    Process* proc = process_manager.get_process(pid);
+    proc->state = ProcessState::READY;
+    proc->current_instruction = 0;
+
+    // Randomize instruction count between [min_ins, max_ins]
+    std::uniform_int_distribution<uint64_t> dist(config.min_ins, config.max_ins);
+    uint64_t num_instructions = dist(rng);
+
+    // Fill with dummy PrintInstructions (lightweight placeholder instructions)
+    for (uint64_t i = 0; i < num_instructions; ++i) {
+        proc->add_instruction(
+            std::make_unique<PrintInstruction>("Hello world from " + name)
+        );
+    }
+
+    scheduler.add_process(proc);
+}
+
+void ProcessGenerator::tick() {
+    if (!generating_.load()) {
+        return;
+    }
+
+    ticks_since_last_generate++;
+
+    if (ticks_since_last_generate >= config.batch_process_freq) {
+        generate_one_process();
+        ticks_since_last_generate = 0;
+    }
+}
+
+void ProcessGenerator::start() {
+    if (generating_.load()) {
+        std::cout << "Process generation is already running.\n";
+        return;
+    }
+    generating_.store(true);
+    ticks_since_last_generate = 0;
+    std::cout << "Process generation started (every "
+              << config.batch_process_freq << " CPU cycle(s)).\n";
+}
+
+void ProcessGenerator::stop() {
+    if (!generating_.load()) {
+        std::cout << "Process generation is not running.\n";
+        return;
+    }
+    generating_.store(false);
+    std::cout << "Process generation stopped. "
+              << (next_process_number - 1) << " process(es) were generated.\n";
+}
+
+bool ProcessGenerator::is_generating() const {
+    return generating_.load();
 }
