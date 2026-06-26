@@ -116,6 +116,7 @@ Process* create_dummy_test_process(ProcessManager& pm, const std::string& name) 
 // ProcessGenerator — drives scheduler-start / scheduler-stop
 // ============================================================================
 
+
 ProcessGenerator::ProcessGenerator(ProcessManager& pm, Scheduler& sched, const Config& cfg)
     : process_manager(pm), scheduler(sched), config(cfg)
 {}
@@ -153,6 +154,7 @@ void ProcessGenerator::generate_one_process() {
 
     scheduler.add_process(proc);
 }
+
 
 void ProcessGenerator::tick() {
     if (!generating_.load()) {
