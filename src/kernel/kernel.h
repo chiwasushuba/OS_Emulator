@@ -5,6 +5,7 @@
 #include "console.h"
 #include "command_handler.h"
 #include "commands.h"
+#include "scheduler.h"
 
 class Kernel {
     private:
@@ -13,6 +14,7 @@ class Kernel {
         std::unique_ptr<CPUManager> cpu_manager = nullptr;
         ProcessLogger process_logger;
         ProcessManager process_manager;
+        std::unique_ptr<Scheduler> scheduler = nullptr;
 
         Config config;                                     // loaded from config.txt
         std::unique_ptr<ProcessGenerator> process_generator = nullptr;

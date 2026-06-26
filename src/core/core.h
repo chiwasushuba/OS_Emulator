@@ -21,6 +21,8 @@ public:
     void print_log(int pid);
 };
 
+class Scheduler;
+
 // Generates dummy processes at a configurable frequency, driven by CPU cycle ticks.
 // - scheduler-start sets generating_ = true
 // - scheduler-stop sets generating_ = false
@@ -28,6 +30,7 @@ public:
 class ProcessGenerator {
 private:
     ProcessManager& process_manager;
+    Scheduler& scheduler;
     const Config& config;
 
     std::atomic<bool> generating_{false};
@@ -43,7 +46,7 @@ private:
     void generate_one_process();
 
 public:
-    ProcessGenerator(ProcessManager& pm, const Config& cfg);
+    ProcessGenerator(ProcessManager& pm, Scheduler& sched, const Config& cfg);
 
     // Called by the kernel once per CPU cycle
     void tick();

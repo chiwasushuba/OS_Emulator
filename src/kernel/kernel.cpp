@@ -22,10 +22,15 @@ void Kernel::handle_logging(const LogEntry& log) {
 
 void Kernel::main_loop() {
     while(this->is_running.load()) {
-        // increment tick for cpu and scheduler
+        // increment tick for cpu
         cpu_manager->tick([this](const LogEntry& log) {
             this->handle_logging(log);
         });
+
+        // Tick the scheduler to manage queue and assign processes
+        if (scheduler) {
+            scheduler->tick();
+        }
 
         // Tick the process generator (scheduler-start/stop driven)
         if (process_generator) {
@@ -43,8 +48,16 @@ void Kernel::start() {
     // Initialize cpu manager
     this->cpu_manager = std::make_unique<CPUManager>(config.num_cpu, config.delays_per_exec);
 
+    // Initialize scheduler
+    if (this->config.scheduler == "rr") {
+        this->scheduler = std::make_unique<RoundRobinScheduler>(*this->cpu_manager, this->process_manager, this->config.quantum_cycles);
+    } else {
+        // Fallback or other implementations
+        this->scheduler = std::make_unique<RoundRobinScheduler>(*this->cpu_manager, this->process_manager, this->config.quantum_cycles);
+    }
+
     // Initialize the process generator (controlled by scheduler-start / scheduler-stop)
-    this->process_generator = std::make_unique<ProcessGenerator>(this->process_manager, this->config);
+    this->process_generator = std::make_unique<ProcessGenerator>(this->process_manager, *this->scheduler, this->config);
 
     std::cout << "num_cpu:\t\t" << this->config.num_cpu << "\n";
     std::cout << "scheduler:\t\t" << this->config.scheduler << "\n";

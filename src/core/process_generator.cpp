@@ -8,6 +8,7 @@
 #include <iostream>
 #include "os_process.h"
 #include "core.h"
+#include "scheduler.h"
 
 Process* test_for_loop(ProcessManager& pm, const std::string& name) {
     int pid = pm.create_process(name);
@@ -115,8 +116,8 @@ Process* create_dummy_test_process(ProcessManager& pm, const std::string& name) 
 // ProcessGenerator — drives scheduler-start / scheduler-stop
 // ============================================================================
 
-ProcessGenerator::ProcessGenerator(ProcessManager& pm, const Config& cfg)
-    : process_manager(pm), config(cfg)
+ProcessGenerator::ProcessGenerator(ProcessManager& pm, Scheduler& sched, const Config& cfg)
+    : process_manager(pm), scheduler(sched), config(cfg)
 {}
 
 std::string ProcessGenerator::make_process_name(int number) const {
@@ -149,6 +150,8 @@ void ProcessGenerator::generate_one_process() {
             std::make_unique<PrintInstruction>("Hello world from " + name)
         );
     }
+
+    scheduler.add_process(proc);
 }
 
 void ProcessGenerator::tick() {
