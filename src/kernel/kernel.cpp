@@ -100,3 +100,11 @@ void Kernel::stop_scheduler() {
         process_generator->stop();
     }
 }
+
+void Kernel::generate_report_file() {
+    // Instantiate the ReportGenerator with access to core manager
+    ReportGenerator reporter(this->process_manager);
+
+    // Call file generator implementation
+    reporter.generate_report("csopes_report.txt");
+}
