@@ -12,13 +12,11 @@ void Commands::setConsole(Console* console) {
 }
 
 void Commands::initialize() {
-    // TODO: Implement initialize
+    kernel_->initialize_subsystems();
     std::cout << "System initialized.\n";
 }
 
 void Commands::exit() {
-    std::cout << "Exiting...\n";
-
     // Stop the console CLI loop
     if (console_) {
         console_->stop();

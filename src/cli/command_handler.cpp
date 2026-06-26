@@ -4,6 +4,7 @@
 #include <sstream>
 #include "command_handler.h"
 #include "commands.h"
+#include "kernel.h"
 
 CommandHandler::CommandHandler(Commands* commands)
     : commands_(commands)
@@ -58,9 +59,17 @@ void CommandHandler::handleCommand(const std::string& input) {
 
     if (cmd == "initialize") {
         commands_->initialize();
+        return;
     }
     else if (cmd == "exit") {
         commands_->exit();
+        return;
+    }
+
+    // Checker for initialization status for commands that need "initialize" to be called first 
+    if (!commands_->getKernel()->get_initialized_status()) {
+        std::cout << "Error: System is uninitialized. Please run 'initialize' first.\n";
+        return; 
     }
     else if (cmd == "clear") {
         #ifdef _WIN32

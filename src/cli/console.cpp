@@ -16,7 +16,7 @@ void Console::run() {
     printIntro();
 
     while (running_.load()) {
-        std::cout << "root:\\> ";
+        std::cout << "\nroot:\\> ";
 
         if (!std::getline(std::cin, input)) {
             // EOF or input stream closed

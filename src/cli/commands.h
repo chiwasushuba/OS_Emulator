@@ -27,7 +27,9 @@ public:
     void reportUtil();
     void help();
 
+    Kernel* getKernel() const { return kernel_; }
+
 private:
     Kernel* kernel_;
     Console* console_ = nullptr;
-};
+};
