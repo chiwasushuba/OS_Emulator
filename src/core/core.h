@@ -60,6 +60,17 @@ public:
     bool is_generating() const;
 };
 
+class ReportGenerator {
+private:
+    ProcessManager& process_manager;
+
+public:
+    ReportGenerator(ProcessManager& pm);
+
+    // Generates .txt file for the active and finished processes
+    void generate_report(const std::string& filename = "csopes_report.txt");
+};
+
 Process* test_deep_for_loops(ProcessManager& pm, const std::string& name);
 Process* test_for_loop(ProcessManager& pm, const std::string& name);
 Process* test_nested_for_loops(ProcessManager& pm, const std::string& name);
