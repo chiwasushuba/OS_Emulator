@@ -55,3 +55,17 @@ void Commands::reportUtil() {
     // TODO: Implement report-util
     std::cout << "report-util (not yet implemented)\n";
 }
+
+void Commands::help() {
+    std::cout << "Available commands:\n"
+              << "  initialize           - Initialize the system\n"
+              << "  exit                 - Exit the emulator\n"
+              << "  clear                - Clear the console screen\n"
+              << "  scheduler-start      - Start generating background processes\n"
+              << "  scheduler-stop       - Stop generating background processes\n"
+              << "  report-util          - Report current CPU utilization\n"
+              << "  screen -ls           - List all active screens (processes)\n"
+              << "  screen -s <name>     - Create and attach to a new screen (process)\n"
+              << "  screen -r <name>     - Resume and attach to an existing screen\n"
+              << "  help                 - Display this help message\n";
+}

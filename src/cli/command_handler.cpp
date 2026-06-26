@@ -32,6 +32,7 @@ bool CommandHandler::isValidCommand(const std::vector<std::string>& tokens) {
     if (cmd == "scheduler-start")  return tokens.size() == 1;
     if (cmd == "scheduler-stop")   return tokens.size() == 1;
     if (cmd == "report-util")      return tokens.size() == 1;
+    if (cmd == "help")             return tokens.size() == 1;
 
     if (cmd == "screen") {
         if (tokens.size() == 2 && tokens[1] == "-ls") return true;
@@ -76,6 +77,9 @@ void CommandHandler::handleCommand(const std::string& input) {
     }
     else if (cmd == "report-util") {
         commands_->reportUtil();
+    }
+    else if (cmd == "help") {
+        commands_->help();
     }
     else if (cmd == "screen") {
         if (tokens[1] == "-ls") {

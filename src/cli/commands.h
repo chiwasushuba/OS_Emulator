@@ -25,6 +25,7 @@ public:
     void schedulerStop();
 
     void reportUtil();
+    void help();
 
 private:
     Kernel* kernel_;
