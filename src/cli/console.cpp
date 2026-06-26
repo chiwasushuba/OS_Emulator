@@ -4,6 +4,7 @@
 #include <string>
 #include "console.h"
 #include "command_handler.h"
+#include "ui.h"
 
 Console::Console(CommandHandler* handler)
     : handler_(handler), running_(false)
@@ -12,9 +13,10 @@ Console::Console(CommandHandler* handler)
 void Console::run() {
     running_.store(true);
     std::string input;
+    printIntro();
 
     while (running_.load()) {
-        std::cout << "Enter a command: ";
+        std::cout << "root:\\> ";
 
         if (!std::getline(std::cin, input)) {
             // EOF or input stream closed

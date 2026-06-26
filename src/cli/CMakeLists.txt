@@ -2,6 +2,7 @@ add_library(cli
     console.cpp
     commands.cpp
     command_handler.cpp
+    ui.cpp
 )
 
 target_include_directories(cli
