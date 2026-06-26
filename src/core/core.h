@@ -19,6 +19,8 @@ public:
 
     void list_processes();
     void print_log(int pid);
+    // Acts as a blocking "screen", separated from UI.
+    void view_process(std::string process_name);
 };
 
 class Scheduler;
@@ -42,11 +44,11 @@ private:
     // Builds a sequential name like "p01", "p02", ..., "p1240"
     std::string make_process_name(int number) const;
 
-    // Creates a single dummy process with randomized PrintInstruction count
-    void generate_one_process();
-
 public:
     ProcessGenerator(ProcessManager& pm, Scheduler& sched, const Config& cfg);
+
+    // Creates a single dummy process with randomized PrintInstruction count
+    Process* generate_one_process(std::string name);
 
     // Called by the kernel once per CPU cycle
     void tick();

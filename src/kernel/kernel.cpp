@@ -139,16 +139,25 @@ void Kernel::handle_command(const CommandPacket& packet) {
 
 void Kernel::execute_screen_subsystem(ScreenAction action, const std::string& payload) {
     // TODO: IMPLEMENT
-    if (action != ScreenAction::NONE || action != ScreenAction::LIST) {
+    if (action == ScreenAction::NONE) {
+        return;
+    }
+    if (action != ScreenAction::NONE && action != ScreenAction::LIST) {
         this->console->clearScreen();
     }
+    ProcessViewer viewer(this->process_manager, this->process_logger);
     switch (action) {
-        case ScreenAction::LIST:   /* screen_manager->list(); */ break;
-        case ScreenAction::CREATE: /* screen_manager->create(payload); */ break;
-            Process* created_process = process_generator.get()->generate_one_process();
-            created_process->process_name = payload;
+        case ScreenAction::LIST:
+            viewer.list_processes();
+            break;
+        case ScreenAction::CREATE:
+            {
+                Process* created_process = process_generator.get()->generate_one_process(payload);
+                viewer.view_process(created_process->process_name);
+            }
+            break;
         case ScreenAction::READ:
-            process_manager
+            viewer.view_process(payload);
             break;
         default: std::cout << "Error: Invalid screen action packet.\n"; break;
     }

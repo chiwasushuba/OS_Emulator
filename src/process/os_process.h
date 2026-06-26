@@ -49,6 +49,7 @@ public:
     int create_process(const std::string& name);
     // Get process pointer (nullptr if not found)
     Process* get_process(int pid);
+    Process* get_process(const std::string& process_name);
     // Get all active PIDs for screen -ls
     std::vector<int> get_active_pids() const;
     std::vector<int> get_finished_pids() const;

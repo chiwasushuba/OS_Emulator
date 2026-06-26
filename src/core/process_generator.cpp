@@ -133,11 +133,12 @@ std::string ProcessGenerator::make_process_name(int number) const {
     return oss.str();
 }
 
-void ProcessGenerator::generate_one_process() {
-    std::string name = make_process_name(next_process_number++);
+Process* ProcessGenerator::generate_one_process(std::string name) {
+    // TODO: Make this generate process with ANY instruction type. Not just PRINT
 
     int pid = process_manager.create_process(name);
     Process* proc = process_manager.get_process(pid);
+    proc->process_name = name;
     proc->state = ProcessState::READY;
     proc->current_instruction = 0;
 
@@ -153,6 +154,8 @@ void ProcessGenerator::generate_one_process() {
     }
 
     scheduler.add_process(proc);
+
+    return proc;
 }
 
 
@@ -164,7 +167,8 @@ void ProcessGenerator::tick() {
     ticks_since_last_generate++;
 
     if (ticks_since_last_generate >= config.batch_process_freq) {
-        generate_one_process();
+        std::string name = make_process_name(next_process_number++);
+        generate_one_process(name);
         ticks_since_last_generate = 0;
     }
 }

@@ -21,6 +21,16 @@ Process* ProcessManager::get_process(int pid) {
     return it->second.get();
 }
 
+Process* ProcessManager::get_process(const std::string& process_name) {
+    for (auto& [pid, process] : processes) {
+        if (process->process_name == process_name) {
+            return process.get();
+        }
+    }
+
+    return nullptr;
+}
+
 std::vector<int> ProcessManager::get_active_pids() const {
     std::vector<int> pids;
     for (const auto& [pid, process] : processes) {

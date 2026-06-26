@@ -49,17 +49,34 @@ void ProcessViewer::list_processes() {
     }
     std::cout << divider;
 }
-// struct LogEntry {
-//     int pid = -1;
-//     int core_id = -1;
-//     int current_instruction = 0;
-//     int total_instructions = 0;
-//     std::string timestamp = "";
-//     std::string message = "";
-//     std::string process_name = "";
-//     LogEventType event_type = LogEventType::NONE;
-// };
 
+void ProcessViewer::view_process(std::string process_name) {
+    Process* process = process_manager.get_process(process_name);
+    std::string input;
+
+    while (true) {
+        std::cout << "\nroot:\\screen\\> ";
+
+        if (!std::getline(std::cin, input)) {
+            // EOF or input stream closed
+            break;
+        }
+
+        if (input.empty()) {
+            continue;
+        }
+
+        if (input == "process-smi") {
+            print_log(process->id);
+        }
+        else if (input == "exit") {
+            break;
+        }
+        else {
+            std::cout << "Invalid input! use \"process-smi\" or \"exit\"";
+        }
+    }
+}
 
 void ProcessViewer::print_log(int pid) {
     auto logs = logger.get_logs(pid);
