@@ -1,7 +1,6 @@
 #include <iostream>
 #include "constants.h"
 #include "ui.h"
-#include "commands.h"
 
 int main()
 {

@@ -3,12 +3,7 @@
 #include <iostream>
 #include <sstream>
 #include "command_handler.h"
-#include "commands.h"
 #include "kernel.h"
-
-CommandHandler::CommandHandler(Commands* commands)
-    : commands_(commands)
-{}
 
 std::vector<std::string> CommandHandler::tokenize(const std::string& input) {
     std::vector<std::string> tokens;
@@ -45,61 +40,87 @@ bool CommandHandler::isValidCommand(const std::vector<std::string>& tokens) {
     return false;
 }
 
-void CommandHandler::handleCommand(const std::string& input) {
+void CommandHandler::help() {
+    std::cout << "Available commands:\n"
+              << "  initialize           - Initialize the system\n"
+              << "  exit                 - Exit the emulator\n"
+              << "  clear                - Clear the console screen\n"
+              << "  scheduler-start      - Start generating background processes\n"
+              << "  scheduler-stop       - Stop generating background processes\n"
+              << "  report-util          - Report current CPU utilization\n"
+              << "  screen -ls           - List all active screens (processes)\n"
+              << "  screen -s <name>     - Create and attach to a new screen (process)\n"
+              << "  screen -r <name>     - Resume and attach to an existing screen\n"
+              << "  help                 - Display this help message\n";
+}
+
+bool CommandHandler::handleCommand(const std::string& input) {
     std::vector<std::string> tokens = tokenize(input);
 
-    if (tokens.empty()) return;
+    if (tokens.empty()) return true;
 
     if (!isValidCommand(tokens)) {
         std::cout << "Invalid command. Please try again.\n";
-        return;
+        return true;
     }
-
+    
+    // Special case, only involves the screen not the kernel.
     const std::string& cmd = tokens[0];
-
-    if (cmd == "initialize") {
-        commands_->initialize();
-        return;
-    }
-    else if (cmd == "exit") {
-        commands_->exit();
-        return;
-    }
-
-    // Checker for initialization status for commands that need "initialize" to be called first 
-    if (!commands_->getKernel()->get_initialized_status()) {
-        std::cout << "Error: System is uninitialized. Please run 'initialize' first.\n";
-        return; 
-    }
-    else if (cmd == "clear") {
+    if (cmd == "clear") {
         #ifdef _WIN32
             system("CLS");
         #else
             system("clear");
         #endif
     }
-    else if (cmd == "scheduler-start") {
-        commands_->schedulerStart();
-    }
-    else if (cmd == "scheduler-stop") {
-        commands_->schedulerStop();
-    }
-    else if (cmd == "report-util") {
-        commands_->reportUtil();
-    }
     else if (cmd == "help") {
-        commands_->help();
+        help();
     }
+
+    CommandPacket packet;
+    if (cmd == "initialize") {
+        packet.type = CommandType::INITIALIZE;
+    } 
+    else if (cmd == "scheduler-start") {
+        packet.type = CommandType::START_SCHEDULER;
+    } 
+    else if (cmd == "scheduler-stop") {
+        packet.type = CommandType::STOP_SCHEDULER;
+    } 
+    else if (cmd == "report") {
+        packet.type = CommandType::REPORT;
+    } 
+    else if (cmd == "exit") {
+        packet.type = CommandType::EXIT;
+    } 
     else if (cmd == "screen") {
-        if (tokens[1] == "-ls") {
-            commands_->screenList();
+        packet.type = CommandType::SCREEN;
+        if (tokens.size() >= 2) {
+            if (tokens[1] == "-ls") {
+                packet.screen_action = ScreenAction::LIST;
+            } else if (tokens[1] == "-s" && tokens.size() > 2) {
+                packet.screen_action = ScreenAction::CREATE;
+                packet.payload = tokens[2]; // screen name
+            } else if (tokens[1] == "-r" && tokens.size() > 2) {
+                packet.screen_action = ScreenAction::READ;
+                packet.payload = tokens[2]; // screen name
+            }
         }
-        else if (tokens[1] == "-s") {
-            commands_->screenCreate(tokens[2]);
-        }
-        else if (tokens[1] == "-r") {
-            commands_->screenResume(tokens[2]);
+        
+        if (packet.screen_action == ScreenAction::NONE) {
+            std::cout << "Usage: screen [-ls] | [-s name] | [-r name]\n";
+            return true; // Reject bad CLI flags early
         }
     }
+    if (packet.type == CommandType::EXIT) {
+        kernel_->handle_command(packet);
+        return false;
+    }
+
+    if (packet.type != CommandType::UNKNOWN) {
+        kernel_->handle_command(packet);
+    }
+
+    return true;
 }
 

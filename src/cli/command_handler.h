@@ -6,22 +6,14 @@
 
 #include <string>
 #include <vector>
+#include "kernel.h"
 
-class Commands;
+class Kernel;
 
 class CommandHandler {
-public:
-
-    // constructor
-    explicit CommandHandler(Commands* commands);
-
-    // validates and executes input command string
-    // screen -ls -> ["screen", "-ls"] -> valid? -> 
-    // yes -> reroute command to screenList()
-    void handleCommand(const std::string& input);
-
 private:
-
+    Kernel* kernel_;
+    
     // tokenizes input string into a vector of strings based on whitespace
     std::vector<std::string> tokenize(const std::string& input);
 
@@ -29,10 +21,16 @@ private:
     bool isValidCommand(const std::vector<std::string>& tokens);
 
     // routes a validated command to the Commands layer
-    void executeCommand(const std::vector<std::string>& tokens);
+    bool executeCommand(const std::vector<std::string>& tokens);
 
-    // prints error for invalid commands
-    void printInvalidCommand() const;
+    void help();
+public:
+    // constructor
+    explicit CommandHandler(Kernel* kernel)
+        : kernel_(kernel) {}
 
-    Commands* commands_;
+    // validates and executes input command string
+    // screen -ls -> ["screen", "-ls"] -> valid? -> 
+    // yes -> reroute command to screenList()
+    bool handleCommand(const std::string& input);
 };

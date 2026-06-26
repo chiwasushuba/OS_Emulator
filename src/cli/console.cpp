@@ -27,7 +27,10 @@ void Console::run() {
             continue;
         }
 
-        handler_->handleCommand(input);
+        bool should_continue = handler_->handleCommand(input);
+        if (!should_continue) {
+            break;
+        }
     }
 }
 

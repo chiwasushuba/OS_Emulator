@@ -82,11 +82,9 @@ void Kernel::start() {
     // Load config variables into member
     loadConfig("../../config.txt", this->config);
 
-    // Build the CLI chain: Commands -> CommandHandler -> Console
-    Commands commands(this);
-    CommandHandler handler(&commands);
+    // Build the CLI chain: CommandHandler -> Console
+    CommandHandler handler(this);
     Console console(&handler);
-    commands.setConsole(&console);
 
     // Run the blocking CLI on the main thread
     console.run();
@@ -97,6 +95,56 @@ void Kernel::start() {
     }
 }
 
+void Kernel::handle_command(const CommandPacket& packet) {
+    if (packet.type != CommandType::INITIALIZE && packet.type != CommandType::EXIT) {
+        if (!is_initialized.load()) {
+            log_error_not_initialized();
+            return;
+        }
+    }
+
+    switch (packet.type) {
+        case CommandType::INITIALIZE:
+            this->initialize_subsystems();
+            break;
+
+        case CommandType::START_SCHEDULER:
+            if (process_generator) process_generator->start();
+            break;
+
+        case CommandType::STOP_SCHEDULER:
+            if (process_generator) process_generator->stop();
+            break;
+
+        case CommandType::REPORT:
+            this->generate_report_file();
+            break;
+
+        case CommandType::SCREEN:
+            // Delegate smoothly to internal screen logic using the sub-action enum
+            this->execute_screen_subsystem(packet.screen_action, packet.payload);
+            break;
+
+        case CommandType::EXIT:
+            this->shutdown();
+            break;
+
+        case CommandType::UNKNOWN:
+        default:
+            std::cout << "Error: Kernel received unhandled or invalid command packet.\n";
+            break;
+    }
+}
+
+void Kernel::execute_screen_subsystem(ScreenAction action, const std::string& payload) {
+    // TODO: IMPLEMENT
+    switch (action) {
+        case ScreenAction::LIST:   /* screen_manager->list(); */ break;
+        case ScreenAction::CREATE: /* screen_manager->create(payload); */ break;
+        case ScreenAction::READ: /* screen_manager->read(payload); */ break;
+        default: std::cout << "Error: Invalid screen action packet.\n"; break;
+    }
+}
 void Kernel::shutdown() {
     this->is_running.store(false);
 }
