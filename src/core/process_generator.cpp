@@ -10,21 +10,6 @@
 #include "core.h"
 #include "scheduler.h"
 
-Process* test_for_loop(ProcessManager& pm, const std::string& name) {
-    int pid = pm.create_process(name);
-    Process* proc = pm.get_process(pid);
-    proc->state = ProcessState::READY;
-    proc->current_instruction = 0;
-    
-    std::vector<std::unique_ptr<Instruction>> loop_body;
-    loop_body.push_back(std::make_unique<AddInstruction>(1, 1, 5)); // Add to register/variable
-    loop_body.push_back(std::make_unique<PrintInstruction>("Loop cycle executed. Delaying."));
-    loop_body.push_back(std::make_unique<SleepInstruction>(2));     // Sleep for 2 ticks inside the loop
-
-    proc->add_instruction(std::make_unique<ForInstruction>(std::move(loop_body), 3));
-    return proc;
-}
-
 Process* test_deep_for_loops(ProcessManager& pm, const std::string& name) {
     int pid = pm.create_process(name);
     Process* proc = pm.get_process(pid);
@@ -78,38 +63,6 @@ Process* test_nested_for_loops(ProcessManager& pm, const std::string& name) {
     proc->add_instruction(std::make_unique<ForInstruction>(std::move(outer_loop), 3));
 
     return proc;
-}    
-
-/**
- * Creates a dynamically allocated test process filled with a variety of instructions.
- * * @param pid The process ID to assign.
- * @param name A descriptive string name for the process.
- * @return Process* Pointer to the constructed process (stored on the heap).
- */ 
-Process* create_dummy_test_process(ProcessManager& pm, const std::string& name) {
-    // 1. Instantiate the base Process object on the heap
-    int pid = pm.create_process(name);
-    Process* proc = pm.get_process(pid);
-    proc->state = ProcessState::READY;
-    proc->current_instruction = 0;
-
-    // 2. Add sample simple instructions
-    proc->add_instruction(std::make_unique<DeclareInstruction>("counter", 0));
-    proc->add_instruction(std::make_unique<PrintInstruction>("Initializing loop simulation..."));
-
-    // 3. Build instructions to inject inside the FOR loop
-    std::vector<std::unique_ptr<Instruction>> loop_body;
-    loop_body.push_back(std::make_unique<AddInstruction>(1, 1, 5)); // Add to register/variable
-    loop_body.push_back(std::make_unique<PrintInstruction>("Loop cycle executed. Delaying."));
-    loop_body.push_back(std::make_unique<SleepInstruction>(2));     // Sleep for 2 ticks inside the loop
-
-    // 4. Wrap the loop body instructions inside a ForInstruction (runs 3 times)
-    proc->add_instruction(std::make_unique<ForInstruction>(std::move(loop_body), 3));
-
-    // 5. Add a final sign-off instruction
-    proc->add_instruction(std::make_unique<PrintInstruction>("Simulation Complete. Core spinning down."));
-
-    return proc;
 }
 
 // ============================================================================
@@ -133,6 +86,31 @@ std::string ProcessGenerator::make_process_name(int number) const {
     return oss.str();
 }
 
+std::string random_var(std::mt19937& rng) {
+    std::uniform_int_distribution<int> dist(0, 15);
+    return "var_" + std::to_string(dist(rng));
+}
+
+Operand random_operand(std::mt19937& rng)
+{
+    std::uniform_int_distribution<int> coin(0, 1);
+    std::uniform_int_distribution<int> val(0, 100);
+
+    Operand op;
+
+    if (coin(rng))
+    {
+        op.isVariable = true;
+        op.variable = random_var(rng);
+    }
+    else
+    {
+        op.isVariable = false;
+        op.immediate = val(rng);
+    }
+
+    return op;
+}
 
 // helper function to create a random instruction, used in generate_one_process
 std::unique_ptr<Instruction> create_random_instruction(std::mt19937& rng, const std::string& process_name, int current_depth) {
@@ -144,15 +122,40 @@ std::unique_ptr<Instruction> create_random_instruction(std::mt19937& rng, const 
     std::uniform_int_distribution<int> reg_dist(0, 9);
     std::uniform_int_distribution<int> sleep_dist(1, 5);
 
+
     switch (type) {
         case 1: //print
+        // {
+        //     std::string var = random_var(rng);
+
+        //     return std::make_unique<PrintInstruction>(
+        //         "Value of " + var + ": ",
+        //         var
+        //     );
+        // }
             return std::make_unique<PrintInstruction>("Hello world from " + process_name + "!");
         case 2: //declare
             return std::make_unique<DeclareInstruction>("var_" + std::to_string(reg_dist(rng)), val_dist(rng));
         case 3: //add
-            return std::make_unique<AddInstruction>(val_dist(rng), val_dist(rng), val_dist(rng));
+        {
+            std::string dest = random_var(rng);
+
+            return std::make_unique<AddInstruction>(
+                dest,
+                random_operand(rng),
+                random_operand(rng)
+            );
+        }
         case 4: //subtract
-            return std::make_unique<SubtractInstruction>(reg_dist(rng), reg_dist(rng), val_dist(rng)); 
+        {
+            std::string dest = random_var(rng);
+
+            return std::make_unique<SubtractInstruction>(
+                dest,
+                random_operand(rng),
+                random_operand(rng)
+            );
+        } 
         case 5: //sleep
             return std::make_unique<SleepInstruction>(sleep_dist(rng));
         case 6://for loop
