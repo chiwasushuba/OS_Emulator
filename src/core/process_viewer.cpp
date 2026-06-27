@@ -33,10 +33,15 @@ void format_snapshot_entry(std::stringstream& ss, const ProcessSnapshot& snapsho
 void ProcessViewer::list_processes() {
 
     auto finished_pids = process_manager.get_finished_pids();
-    auto active_pids = process_manager.get_active_pids();
+    // auto active_pids = process_manager.get_active_pids();
 
     std::string divider = "------------------------------------------\n";
     auto running_processes = process_manager.get_active_processes();
+    std::cout
+        << "CPU utilization: " << cpu_manager.get_global_utilization() << "%\n"
+        << "Cores used: " << cpu_manager.get_cores_used() << "\n"
+        << "Cores available: " << cpu_manager.get_cores_available() << "\n";
+    
     std::cout << "Running processes:\n";
     if (running_processes.empty()) {
         std::cout << "None\n";

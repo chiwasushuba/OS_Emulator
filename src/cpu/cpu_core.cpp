@@ -33,13 +33,19 @@ void CPUCore::remove_process() {
 bool CPUCore::tick(LogEntry& log) {
     // technically we dont use the bool anymore but no time to refactor
     bool should_log = true;
+    
+    // Put here so that its counted everytime (even without a process)
+    total_ticks++;
     if (current_process == nullptr) {
         ticks_since_last_exec = 0;
         return false;
     }
 
+    // Update counters
+    active_ticks++;
     ticks_since_last_exec++;
 
+    // Execution delay implementation
     if (ticks_since_last_exec >= delays_per_exec || delays_per_exec == 0) {
         should_log = current_process->execute_next_instruction(log);
         ticks_since_last_exec = 0;
@@ -48,4 +54,9 @@ bool CPUCore::tick(LogEntry& log) {
     }
 
     return should_log;
+}
+
+double CPUCore::get_utilization() const {
+    if (total_ticks == 0) return 0.0;
+    return (static_cast<double>(active_ticks) / total_ticks) * 100.0;
 }

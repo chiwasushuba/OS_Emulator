@@ -147,7 +147,7 @@ void Kernel::execute_screen_subsystem(ScreenAction action, const std::string& pa
     if (action != ScreenAction::NONE && action != ScreenAction::LIST) {
         this->console->clearScreen();
     }
-    ProcessViewer viewer(this->process_manager, this->process_logger);
+    ProcessViewer viewer(this->process_manager, this->process_logger, *(this->cpu_manager));
     switch (action) {
         case ScreenAction::LIST:
             viewer.list_processes();
@@ -194,7 +194,7 @@ void Kernel::generate_report_file() {
         return;
     }
     // Instantiate the ReportGenerator with access to core manager
-    ReportGenerator reporter(this->process_manager);
+    ReportGenerator reporter(this->process_manager, *(this->cpu_manager));
 
     // Call file generator implementation
     reporter.generate_report("../../csopesy_report.txt");
