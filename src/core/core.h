@@ -6,15 +6,17 @@
 #include <random>
 #include "os_process.h"
 #include "config.h"
+#include "cpu.h"
 
 class ProcessViewer {
 private:
     ProcessManager& process_manager;
     ProcessLogger& logger;
+    CPUManager& cpu_manager;
 
 public:
-    ProcessViewer(ProcessManager& pm, ProcessLogger& log)
-        : process_manager(pm), logger(log)
+    ProcessViewer(ProcessManager& pm, ProcessLogger& log, CPUManager& cpu_m)
+        : process_manager(pm), logger(log), cpu_manager(cpu_m)
     {}
 
     void list_processes();
@@ -65,9 +67,10 @@ public:
 class ReportGenerator {
 private:
     ProcessManager& process_manager;
+    CPUManager& cpu_manager;
 
 public:
-    ReportGenerator(ProcessManager& pm);
+    ReportGenerator(ProcessManager& pm, CPUManager& cpu_m);
 
     // Generates .txt file for the active and finished processes
     void generate_report(const std::string& filename = "csopes_report.txt");
@@ -77,3 +80,10 @@ Process* test_deep_for_loops(ProcessManager& pm, const std::string& name);
 Process* test_for_loop(ProcessManager& pm, const std::string& name);
 Process* test_nested_for_loops(ProcessManager& pm, const std::string& name);
 Process* create_dummy_test_process(ProcessManager& pm, const std::string& name);
+
+// helper functions
+void format_active_entry(std::stringstream& ss, Process* process);  // depracated
+
+void format_finished_entry(std::stringstream& ss, Process* process);
+
+void format_snapshot_entry(std::stringstream& ss, const ProcessSnapshot& snapshot);

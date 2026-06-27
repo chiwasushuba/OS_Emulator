@@ -31,6 +31,14 @@ enum class SleepState {
     AWAKE
 };
 
+struct ProcessSnapshot {
+    int id;
+    std::string name;
+    int core_id;
+    int current_instruction;
+    size_t total_instructions;
+};
+
 enum class LogEventType {
     NONE,
     INSTRUCTION_FINISHED,
@@ -55,6 +63,8 @@ class ProcessManager {
 private:
     std::unordered_map<int, std::unique_ptr<Process>> processes;
     int next_pid = 1;
+
+    mutable std::mutex pm_mutex;
 public:
     // Creates a new process object, adds it to the process map, and returns the pid
     int create_process(const std::string& name);
@@ -65,6 +75,7 @@ public:
     std::vector<int> get_active_pids() const;
     std::vector<int> get_finished_pids() const;
     std::vector<int> get_all_pids() const;
+    std::vector<ProcessSnapshot> get_active_processes() const;
 };
 
 // Gets called by core component to generate reports

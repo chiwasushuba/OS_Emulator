@@ -208,14 +208,15 @@ void ProcessGenerator::tick() {
     if (!generating_.load()) {
         return;
     }
-
+    
     ticks_since_last_generate++;
-
+    
     if (ticks_since_last_generate >= config.batch_process_freq) {
         std::string name = make_process_name(next_process_number++);
         generate_one_process(name);
         ticks_since_last_generate = 0;
     }
+    
 }
 
 void ProcessGenerator::start() {
