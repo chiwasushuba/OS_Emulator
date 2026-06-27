@@ -1,19 +1,20 @@
 #include "os_process.h"
 #include "core.h"
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 
 void format_active_entry(std::stringstream& ss, Process* process) {
-        ss << process->process_name << "\t";
-        ss << process->process_name << "\t";
+        ss << process->id << "\t";
+        ss << std::setw(7) << process->process_name << "\t";
         ss << "(" << get_current_time() << ")\t";
         ss << "Core: " << process->core_id << "\t\t";
         ss << process->current_instruction+1 << " / " << process->total_instructions() << "\n";
 }
 
 void format_finished_entry(std::stringstream& ss, Process* process) {
-        ss << process->process_name << "\t";
-        ss << process->process_name << "\t";
+        ss << process->id << "\t";
+        ss << std::setw(7) << process->process_name << "\t";
         ss << "(" << get_current_time() << ")\t";
         ss << "Finished\t";
         ss << process->current_instruction << " / " << process->total_instructions() << "\n";
@@ -55,7 +56,7 @@ void ProcessViewer::view_process(std::string process_name) {
     std::string input;
 
     while (true) {
-        std::cout << "\nroot:\\screen\\> ";
+        std::cout << "\nroot:\\" << process->process_name << ":" << process->id << "\\> ";
 
         if (!std::getline(std::cin, input)) {
             // EOF or input stream closed
