@@ -5,7 +5,7 @@ constexpr uint64_t MAX_CONFIG_VALUE = 4294967296ULL;
 
 struct Config {
     int num_cpu = 4;
-    std::string scheduler = "rr";
+    std::string scheduler = "fcfs";
     uint64_t quantum_cycles = 5;
     uint64_t batch_process_freq = 1;
     uint64_t min_ins = 1000;

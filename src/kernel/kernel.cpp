@@ -54,9 +54,12 @@ void Kernel::initialize_subsystems() {
     // Initialize scheduler
     if (this->config.scheduler == "rr") {
         this->scheduler = std::make_unique<RoundRobinScheduler>(*this->cpu_manager, this->process_manager, this->config.quantum_cycles);
+    } else if (this->config.scheduler == "fcfs") {
+        this->scheduler = std::make_unique<FCFSScheduler>(*this->cpu_manager, this->process_manager);
     } else {
-        // Fallback or other implementations
-        this->scheduler = std::make_unique<RoundRobinScheduler>(*this->cpu_manager, this->process_manager, this->config.quantum_cycles);
+        // Fallback if config has an invalid name
+        std::cout << "Warning: Unknown scheduler '" << this->config.scheduler << "' in config.txt. Defaulting to FCFS.\n";
+        this->scheduler = std::make_unique<FCFSScheduler>(*this->cpu_manager, this->process_manager);
     }
 
     // Initialize the process generator (controlled by scheduler-start / scheduler-stop)

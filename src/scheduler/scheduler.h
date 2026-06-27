@@ -34,3 +34,13 @@ public:
     void tick() override;
 };
 
+class FCFSScheduler : public Scheduler {
+private:
+    std::queue<Process*> ready_queue;
+
+public:
+    FCFSScheduler(CPUManager& cpu_m, ProcessManager& proc_m);
+    
+    void add_process(Process* process) override;
+    void tick() override;
+};
