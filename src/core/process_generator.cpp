@@ -133,8 +133,45 @@ std::string ProcessGenerator::make_process_name(int number) const {
     return oss.str();
 }
 
+
+// helper function to create a random instruction, used in generate_one_process
+std::unique_ptr<Instruction> create_random_instruction(std::mt19937& rng, const std::string& process_name, int current_depth) {
+    int max_type = (current_depth >= 3) ? 5 : 6; 
+    std::uniform_int_distribution<int> type_dist(1, max_type);
+    int type = type_dist(rng);
+
+    std::uniform_int_distribution<int> val_dist(0, 65535); // Max uint16_t limit
+    std::uniform_int_distribution<int> reg_dist(0, 9);
+    std::uniform_int_distribution<int> sleep_dist(1, 5);
+
+    switch (type) {
+        case 1: //print
+            return std::make_unique<PrintInstruction>("Hello world from " + process_name + "!");
+        case 2: //declare
+            return std::make_unique<DeclareInstruction>("var_" + std::to_string(reg_dist(rng)), val_dist(rng));
+        case 3: //add
+            return std::make_unique<AddInstruction>(val_dist(rng), val_dist(rng), val_dist(rng));
+        case 4: //subtract
+            return std::make_unique<SubtractInstruction>(reg_dist(rng), reg_dist(rng), val_dist(rng)); 
+        case 5: //sleep
+            return std::make_unique<SleepInstruction>(sleep_dist(rng));
+        case 6://for loop
+        {
+            std::vector<std::unique_ptr<Instruction>> loop_body;
+            std::uniform_int_distribution<int> loop_len_dist(1, 3);
+            int loop_len = loop_len_dist(rng);
+            for (int i = 0; i < loop_len; ++i) {
+                loop_body.push_back(create_random_instruction(rng, process_name, current_depth + 1));
+            }
+            std::uniform_int_distribution<int> repeat_dist(2, 5);
+            return std::make_unique<ForInstruction>(std::move(loop_body), repeat_dist(rng));
+        }
+        default: 
+            return std::make_unique<PrintInstruction>("Hello world from " + process_name + "!");
+    }
+}
+
 Process* ProcessGenerator::generate_one_process(std::string name) {
-    // TODO: Make this generate process with ANY instruction type. Not just PRINT
 
     int pid = process_manager.create_process(name);
     Process* proc = process_manager.get_process(pid);
@@ -147,10 +184,15 @@ Process* ProcessGenerator::generate_one_process(std::string name) {
     uint64_t num_instructions = dist(rng);
 
     // Fill with dummy PrintInstructions (lightweight placeholder instructions)
+    //for (uint64_t i = 0; i < num_instructions; ++i) {
+    //    proc->add_instruction(
+    //        std::make_unique<PrintInstruction>("Hello world from " + name)
+    //    );
+    //}
+
+    //UPDATED Loop to generate random instructions of any type
     for (uint64_t i = 0; i < num_instructions; ++i) {
-        proc->add_instruction(
-            std::make_unique<PrintInstruction>("Hello world from " + name)
-        );
+        proc->add_instruction(create_random_instruction(this->rng, name, 0));
     }
 
     scheduler.add_process(proc);
