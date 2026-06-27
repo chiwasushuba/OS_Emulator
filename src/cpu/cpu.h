@@ -8,9 +8,11 @@ class CPUCore {
 private:
     int core_id;
     Process* current_process = nullptr;
+    int delays_per_exec;
+    int ticks_since_last_exec;
 
 public:
-    explicit CPUCore(int id);
+    explicit CPUCore(int id, int delay=0);
 
     int get_id() const;
 

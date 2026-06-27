@@ -6,7 +6,7 @@ CPUManager::CPUManager(int num_cores, uint64_t delay_per_exec)
 {
     // Populate the vector with the specified number of cores
     for (int i = 0; i < num_cores; ++i) {
-        cores.emplace_back(i); // Calls the CPUCore(int id) constructor
+        cores.emplace_back(i, delay_per_exec); // Calls the CPUCore(int id) constructor
     }
 }
 
