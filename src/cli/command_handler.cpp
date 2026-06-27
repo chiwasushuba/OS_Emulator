@@ -91,7 +91,7 @@ bool CommandHandler::handleCommand(const std::string& input) {
     else if (cmd == "scheduler-stop") {
         packet.type = CommandType::STOP_SCHEDULER;
     } 
-    else if (cmd == "report") {
+    else if (cmd == "report-util") {
         packet.type = CommandType::REPORT;
     } 
     else if (cmd == "exit") {
