@@ -34,7 +34,7 @@ Process* ProcessManager::get_process(const std::string& process_name) {
 std::vector<int> ProcessManager::get_active_pids() const {
     std::vector<int> pids;
     for (const auto& [pid, process] : processes) {
-        if (process->state != ProcessState::FINISHED) {
+        if (process->core_id != -1 && process->state != ProcessState::FINISHED) {
             pids.push_back(pid);
         }
     }

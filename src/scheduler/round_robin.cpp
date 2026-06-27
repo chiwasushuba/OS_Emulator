@@ -39,6 +39,8 @@ void RoundRobinScheduler::tick() {
                 p->state = ProcessState::READY;
                 ready_queue.push(p);
                 core_cycles[i] = 0;
+
+                continue;
             }
         }
         

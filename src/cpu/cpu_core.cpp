@@ -24,6 +24,7 @@ Process* CPUCore::get_process() const {
 }
 
 void CPUCore::remove_process() {
+    current_process->core_id = -1;
     current_process = nullptr;
 }
 

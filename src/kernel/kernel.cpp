@@ -197,5 +197,5 @@ void Kernel::generate_report_file() {
     ReportGenerator reporter(this->process_manager);
 
     // Call file generator implementation
-    reporter.generate_report("csopesy_report.txt");
+    reporter.generate_report("../../csopesy_report.txt");
 }

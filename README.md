@@ -1,5 +1,11 @@
 # OS_Emulator
 
+## Developers
+- Bernandino, Adrian Rafael
+- Corpuz, Thara Mae
+- Esleta, Joshua James
+- Santos, Francine Hannah
+
 ## Project Setup
 This project uses **CMake** as its build system. CMake generates the necessary build files for your platform and compiler.
 
