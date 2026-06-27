@@ -98,5 +98,28 @@ This `LogEntry` object is modified by the `Process` and `Instruction` classes to
 
 The `LogEventType` field is particularly important because it allows the `CPUManager` to signal an interrupt to the `Kernel`. In this emulator, interrupts are primarily used to handle logging events.
 
-### Scheduler implementation
-- TODO
+#### Scheduler implementation
+The `Kernel` is responsible for ticking the active scheduling algorithm on every clock cycle. The base `Scheduler` class defines an abstract contract interface requiring any concrete scheduler to implement `add_process` and `tick`.
+
+Both scheduler implementations utilize a First-In, First-Out queue (`std::queue<Process*>`) to manage ready processes waiting for CPU allocation.
+
+##### 1. First-Come, First-Served (FCFS) Scheduler
+The `FCFSScheduler` is a non-preemptive algorithm. During a scheduling cycle (`tick`):
+* It monitors active CPU cores and checks if their assigned processes have completed (`ProcessState::FINISHED`).
+* Completed processes are immediately detached, freeing the core.
+* If a core is idle and the ready queue is not empty, the scheduler pops the process at the front of the queue and assigns it to the core. A process assigned to a core runs continuously without interruption until finished.
+
+##### 2. Round Robin (RR) Scheduler
+The `RoundRobinScheduler` is a preemptive algorithm that supports time-sharing. It introduces a `quantum` parameter and a `core_cycles` tracker:
+* The `core_cycles` vector tracks the cycle count for each active core.
+* During a `tick` cycle, if a core is not idle, the scheduler increments the core's cycle counter.
+* If the elapsed cycles on a core reach or exceed the `quantum` threshold:
+  1. The running process is preempted (detached from the core).
+  2. Its state is updated back to `ProcessState::READY`.
+  3. It is appended to the back of the ready queue.
+  4. The core's cycle tracker is reset to `0`, making the core available for the next process.
+
+##### Lifecycle State Transitions
+The scheduling loop drives process states through the following state machine transitions:
+
+`READY (in Queue) -> RUNNING (on Core) -> READY (if Preempted by RR) -> FINISHED (detached from Core)`
