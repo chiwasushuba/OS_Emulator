@@ -64,6 +64,27 @@ void validateConfig(Config& config) {
 
         config.delays_per_exec = default_config.delays_per_exec;
     }
+
+    if(config.max_overall_mem < 1 || config.max_overall_mem > MAX_CONFIG_VALUE) {
+        std::cerr
+            << "ERROR: max-overall-mem must be [1, 2^32]; using default instead...\n";
+
+        config.max_overall_mem = default_config.max_overall_mem;
+    }
+
+    if(config.mem_per_frame < 1 || config.mem_per_frame > MAX_CONFIG_VALUE) {
+        std::cerr
+            << "ERROR: mem-per-frame must be [1, 2^32]; using default instead...\n";
+
+        config.mem_per_frame = default_config.mem_per_frame;
+    }
+
+    if(config.mem_per_proc < 1 || config.mem_per_proc > config.max_overall_mem) {
+        std::cerr
+            << "ERROR: mem-per-proc must be [1, max-overall-mem]; using default instead...\n";
+
+        config.mem_per_proc = default_config.mem_per_proc;
+    }
 }
 
 void loadConfig(const std::string& filename, Config& config) {
@@ -76,7 +97,7 @@ void loadConfig(const std::string& filename, Config& config) {
 
     std::string line;
 
-    // TODO: Add
+    // TODO: Check if these safeguards are enough.
     while (std::getline(file, line)) {
         if (line.empty())
             continue;
@@ -110,6 +131,15 @@ void loadConfig(const std::string& filename, Config& config) {
         }
         else if (key == "delays-per-exec") {
             config.delays_per_exec = std::stoull(value);
+        }
+        else if (key == "max-overall-mem") {
+            config.max_overall_mem = std::stoull(value);
+        }
+        else if (key == "mem-per-frame") {
+            config.mem_per_frame = std::stoull(value);
+        }
+        else if (key == "mem-per-proc") {
+            config.mem_per_proc = std::stoull(value);
         }
         else {
             std::cerr << "Unknown parameter: " << key << '\n';

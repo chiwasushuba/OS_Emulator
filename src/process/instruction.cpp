@@ -31,21 +31,53 @@ void initialize_entry(Process& context, LogEntry& log) {
     log.event_type = LogEventType::NONE;
 }
 
+uint16_t Instruction::resolve_operand(const Process& ctx, const Operand& op) const {
+    if (!op.isVariable)
+        return op.immediate;
+
+    uint16_t value = 0;
+    if (!ctx.get_variable(op.variable, value))
+        return 0; // or handle error
+
+    return value;
+}
+
 bool AddInstruction::execute(Process& context, LogEntry& log) {
-    this->var_1 = this->var_2 + this->var_3;
+    // Operation
+    uint16_t left = resolve_operand(context, lhs);
+    uint16_t right = resolve_operand(context, rhs);
+    uint32_t result = left + right;
+
+    if (result > UINT16_MAX)
+        result = UINT16_MAX;
+
+    context.set_variable(destination,
+                     static_cast<uint16_t>(result));
+    
+    // Logging
     std::stringstream ss;
     ss << std::right << std::setw(10) << "ADD: ";
-    ss << this->var_1 << " = " << this->var_2 << " + " << this->var_3;
+    ss << result << " = " << left << " + " << right;
     log.message = ss.str();
     return true;
 }
 
 bool SubtractInstruction::execute(Process& context, LogEntry& log) {
-    this->var_1 = this->var_2 - this->var_3;
-    
+    // Operation
+    uint16_t left = resolve_operand(context, lhs);
+    uint16_t right = resolve_operand(context, rhs);
+    uint32_t result = left - right;
+
+    if (result > UINT16_MAX)
+        result = UINT16_MAX;
+
+    context.set_variable(destination,
+                     static_cast<uint16_t>(result));
+
+    // Logging
     std::stringstream ss;
     ss << std::right << std::setw(10) << "SUBTRACT: ";
-    ss << this->var_1 << " = " << this->var_2 << " - " << this->var_3;
+    ss << result << " = " << left << " - " << right;
     log.message = ss.str();
     return true;
 }
@@ -54,8 +86,9 @@ bool PrintInstruction::execute(Process& context, LogEntry& log) {
     std::stringstream ss;
     ss << std::right << std::setw(10) << "PRINT: ";
     ss << this->msg;
-    if (this->x != "") {
-        ss << " " << this->x;
+    uint16_t value;
+    if (context.get_variable(x, value)) {
+        ss << " " << value;
     }
     log.message = ss.str();
     return true;
@@ -63,6 +96,7 @@ bool PrintInstruction::execute(Process& context, LogEntry& log) {
 
 bool DeclareInstruction::execute(Process& context, LogEntry& log) {
     std::stringstream ss;
+    context.set_variable(var, value);
     ss << std::right << std::setw(10) << "DECLARE: ";
     ss << "Declared var " << this->var << " with value " << this->value;
     log.message = ss.str();

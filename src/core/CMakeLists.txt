@@ -14,4 +14,5 @@ target_link_libraries(core
     process
     cpu
     scheduler
+    config
 )

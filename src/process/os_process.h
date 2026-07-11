@@ -8,6 +8,17 @@
 
 class Process;
 
+struct Operand
+{
+    bool isVariable;
+    std::string variable;
+    uint16_t immediate;
+    
+    static Operand Imm(uint16_t value) {
+        return Operand{false, "", value};
+    }
+};
+
 enum class ProcessState {
     READY,
     RUNNING,
@@ -18,6 +29,14 @@ enum class ProcessState {
 enum class SleepState {
     SLEEPING,
     AWAKE
+};
+
+struct ProcessSnapshot {
+    int id;
+    std::string name;
+    int core_id;
+    int current_instruction;
+    size_t total_instructions;
 };
 
 enum class LogEventType {
@@ -44,15 +63,19 @@ class ProcessManager {
 private:
     std::unordered_map<int, std::unique_ptr<Process>> processes;
     int next_pid = 1;
+
+    mutable std::mutex pm_mutex;
 public:
     // Creates a new process object, adds it to the process map, and returns the pid
     int create_process(const std::string& name);
     // Get process pointer (nullptr if not found)
     Process* get_process(int pid);
+    Process* get_process(const std::string& process_name);
     // Get all active PIDs for screen -ls
     std::vector<int> get_active_pids() const;
     std::vector<int> get_finished_pids() const;
     std::vector<int> get_all_pids() const;
+    std::vector<ProcessSnapshot> get_active_processes() const;
 };
 
 // Gets called by core component to generate reports
@@ -79,12 +102,15 @@ class Instruction {
 
         // Overridden by instructions with state
         virtual void reset() {}
+    protected:
+        uint16_t resolve_operand(const Process& ctx, const Operand& op) const;
 };
 
 // Process Control Block PCB, no need for mutex since there would be only one universal scheduler
 class Process {
     private:
         std::vector<std::unique_ptr<Instruction>> instruction_list;
+        std::unordered_map<std::string, uint16_t> symbol_table;
     
     public: // public for easier manipulation by the scheduler
         int current_instruction = 0;
@@ -96,6 +122,23 @@ class Process {
         bool execute_next_instruction(LogEntry& log);    // should, LogEntry& log call logging
         
         void add_instruction(std::unique_ptr<Instruction> new_instruction);
+
+        void set_variable(const std::string& name, uint16_t value) {
+            symbol_table[name] = value;
+        }
+
+        bool get_variable(const std::string& name, uint16_t& value) const {
+            auto it = symbol_table.find(name);
+            if (it == symbol_table.end())
+                return false;
+
+            value = it->second;
+            return true;
+        }
+
+        const std::unordered_map<std::string, uint16_t>& get_all_variables() const {
+            return symbol_table;
+        }
 
         size_t total_instructions() const {
             return instruction_list.size();
@@ -121,12 +164,12 @@ public:
 // ADD(var1, var2/value, var3/value)
 class AddInstruction : public Instruction {
 private:
-    uint16_t var_1 = 0;
-    uint16_t var_2 = 0;
-    uint16_t var_3 = 0;
+    std::string destination = 0;
+    Operand lhs = Operand::Imm(0);
+    Operand rhs = Operand::Imm(0);
 public:
-    AddInstruction(uint16_t t, uint16_t s1, uint16_t s2) 
-        : var_1(t), var_2(s1), var_3(s2) {};
+    AddInstruction(std::string var_1, Operand var_2, Operand var_3) 
+        : destination(var_1), lhs(var_2), rhs(var_3) {};
 
     bool execute(Process& context, LogEntry& log) override;
 };
@@ -134,12 +177,12 @@ public:
 // SUBTRACT(var1, var2/value, var3/value)
 class SubtractInstruction : public Instruction {
 private:
-    uint16_t var_1 = 0;
-    uint16_t var_2 = 0;
-    uint16_t var_3 = 0;
+    std::string destination = 0;
+    Operand lhs = Operand::Imm(0);
+    Operand rhs = Operand::Imm(0);
 public:
-    SubtractInstruction(uint16_t t, uint16_t s1, uint16_t s2) 
-        : var_1(t), var_2(s1), var_3(s2) {}
+    SubtractInstruction(std::string var_1, Operand var_2, Operand var_3) 
+        : destination(var_1), lhs(var_2), rhs(var_3) {}
 
     bool execute(Process& context, LogEntry& log) override;
 };
