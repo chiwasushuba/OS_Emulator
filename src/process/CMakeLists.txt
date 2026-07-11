@@ -1,0 +1,10 @@
+add_library(process
+    process.cpp
+    logger.cpp
+    instruction.cpp
+    manager.cpp
+)
+
+target_include_directories(process
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+)

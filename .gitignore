@@ -9,3 +9,7 @@ Debug/
 *.vsidx
 *.ipch
 *.suo
+UpgradeLog.htm
+build/
+*.exe
+config.txt

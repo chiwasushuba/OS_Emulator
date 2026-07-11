@@ -1,0 +1,108 @@
+// TODO: Implement Random Process Generation
+
+#include <memory>
+#include <string>
+#include <vector>
+#include "os_process.h"
+
+Process* test_for_loop(ProcessManager& pm, const std::string& name) {
+    int pid = pm.create_process(name);
+    Process* proc = pm.get_process(pid);
+    proc->state = ProcessState::READY;
+    proc->current_instruction = 0;
+    
+    std::vector<std::unique_ptr<Instruction>> loop_body;
+    loop_body.push_back(std::make_unique<AddInstruction>(1, 1, 5)); // Add to register/variable
+    loop_body.push_back(std::make_unique<PrintInstruction>("Loop cycle executed. Delaying."));
+    loop_body.push_back(std::make_unique<SleepInstruction>(2));     // Sleep for 2 ticks inside the loop
+
+    proc->add_instruction(std::make_unique<ForInstruction>(std::move(loop_body), 3));
+    return proc;
+}
+
+Process* test_deep_for_loops(ProcessManager& pm, const std::string& name) {
+    int pid = pm.create_process(name);
+    Process* proc = pm.get_process(pid);
+    proc->state = ProcessState::READY;
+    proc->current_instruction = 0;
+
+    // Deepest level
+    std::vector<std::unique_ptr<Instruction>> level4;
+    level4.push_back(
+        std::make_unique<PrintInstruction>("LEVEL 4 EXECUTED")
+    );
+
+    // Level 3
+    std::vector<std::unique_ptr<Instruction>> level3;
+    level3.push_back(
+        std::make_unique<ForInstruction>(std::move(level4), 3)
+    );
+
+    // Level 2
+    std::vector<std::unique_ptr<Instruction>> level2;
+    level2.push_back(
+        std::make_unique<ForInstruction>(std::move(level3), 3)
+    );
+
+    // Level 1
+    std::vector<std::unique_ptr<Instruction>> level1;
+    level1.push_back(
+        std::make_unique<ForInstruction>(std::move(level2), 3)
+    );
+
+    // Root loop
+    proc->add_instruction(
+        std::make_unique<ForInstruction>(std::move(level1), 3)
+    );
+
+    return proc;
+}
+
+Process* test_nested_for_loops(ProcessManager& pm, const std::string& name) {
+    int pid = pm.create_process(name);
+    Process* proc = pm.get_process(pid);
+    proc->state = ProcessState::READY;
+    proc->current_instruction = 0;
+
+    std::vector<std::unique_ptr<Instruction>> outer_loop;
+    std::vector<std::unique_ptr<Instruction>> inner_loop;
+    
+    outer_loop.push_back(std::make_unique<PrintInstruction>("OUTER LOOP PRINT"));
+    inner_loop.push_back(std::make_unique<PrintInstruction>("INNER LOOP PRINT"));
+    outer_loop.push_back(std::make_unique<ForInstruction>(std::move(inner_loop), 3));
+    proc->add_instruction(std::make_unique<ForInstruction>(std::move(outer_loop), 3));
+
+    return proc;
+}    
+
+/**
+ * Creates a dynamically allocated test process filled with a variety of instructions.
+ * * @param pid The process ID to assign.
+ * @param name A descriptive string name for the process.
+ * @return Process* Pointer to the constructed process (stored on the heap).
+ */ 
+Process* create_dummy_test_process(ProcessManager& pm, const std::string& name) {
+    // 1. Instantiate the base Process object on the heap
+    int pid = pm.create_process(name);
+    Process* proc = pm.get_process(pid);
+    proc->state = ProcessState::READY;
+    proc->current_instruction = 0;
+
+    // 2. Add sample simple instructions
+    proc->add_instruction(std::make_unique<DeclareInstruction>("counter", 0));
+    proc->add_instruction(std::make_unique<PrintInstruction>("Initializing loop simulation..."));
+
+    // 3. Build instructions to inject inside the FOR loop
+    std::vector<std::unique_ptr<Instruction>> loop_body;
+    loop_body.push_back(std::make_unique<AddInstruction>(1, 1, 5)); // Add to register/variable
+    loop_body.push_back(std::make_unique<PrintInstruction>("Loop cycle executed. Delaying."));
+    loop_body.push_back(std::make_unique<SleepInstruction>(2));     // Sleep for 2 ticks inside the loop
+
+    // 4. Wrap the loop body instructions inside a ForInstruction (runs 3 times)
+    proc->add_instruction(std::make_unique<ForInstruction>(std::move(loop_body), 3));
+
+    // 5. Add a final sign-off instruction
+    proc->add_instruction(std::make_unique<PrintInstruction>("Simulation Complete. Core spinning down."));
+
+    return proc;
+}
