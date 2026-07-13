@@ -16,5 +16,5 @@ namespace Timing {
 	// "1 cycle" is effectively microseconds - meaning quantum-cycles,
 	// batch-process-freq, and memory snapshots all fire absurdly fast.
 	// This paces 1 tick to a human-observable interval instead.
-	constexpr std::chrono::milliseconds TICK_DURATION{100};
+	constexpr std::chrono::milliseconds TICK_DURATION{20};
 }

@@ -4,12 +4,12 @@
 constexpr uint64_t MAX_CONFIG_VALUE = 4294967296ULL;
 
 struct Config {
-    int num_cpu = 4;
-    std::string scheduler = "fcfs";
-    uint64_t quantum_cycles = 5;
+    int num_cpu = 2;
+    std::string scheduler = "rr";
+    uint64_t quantum_cycles = 4;
     uint64_t batch_process_freq = 1;
-    uint64_t min_ins = 1000;
-    uint64_t max_ins = 2000;
+    uint64_t min_ins = 100;
+    uint64_t max_ins = 100;
     uint64_t delays_per_exec = 0;
 
     // Memory manager configuration

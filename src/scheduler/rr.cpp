@@ -68,52 +68,35 @@ void RoundRobinScheduler::tick() {
             }
         }
 
-        // 3. If core is idle and we have waiting processes, scan the queue
-        // for the first process we can actually run right now - either
-        // already resident in memory, or admittable into free memory.
-        //
-        // NOTE: this used to try only ready_queue.front() once per tick. With
-        // batch-process-freq generating a new (memory-less) process every
-        // tick into the SAME queue as already-resident preempted processes,
-        // that let a growing backlog of unadmittable newcomers pile up
-        // AHEAD of resident processes in FIFO order, starving them - a core
-        // could sit "idle" for many ticks popping doomed ADMIT-FAILs before
-        // ever reaching a process it could actually run. Scanning up to the
-        // queue's current size (a bounded single pass, so it can't loop
-        // forever if nothing in the current queue is runnable) fixes that.
+        // 3. If core is idle and we have waiting processes, assign one
         if (core.is_idle() && !ready_queue.empty()) {
-            size_t attempts = ready_queue.size();
+            Process* p = ready_queue.front();
+            ready_queue.pop();
 
-            for (size_t attempt = 0; attempt < attempts && core.is_idle(); ++attempt) {
-                Process* p = ready_queue.front();
-                ready_queue.pop();
+            // Already resident in memory (this is a re-admission after preemption)
+            if (process_memory_ptr.find(p->id) != process_memory_ptr.end()) {
+                core.assign_process(p);
+                core_cycles[i] = 0; // reset for the new process
+                debug_log("[" + get_current_time() + "] core " + std::to_string(i) +
+                          " RESUME pid=" + std::to_string(p->id) + " (" + p->process_name + ")");
+                continue;
+            }
 
-                // Already resident in memory (this is a re-admission after preemption)
-                if (process_memory_ptr.find(p->id) != process_memory_ptr.end()) {
-                    core.assign_process(p);
-                    core_cycles[i] = 0; // reset for the new process
-                    debug_log("[" + get_current_time() + "] core " + std::to_string(i) +
-                              " RESUME pid=" + std::to_string(p->id) + " (" + p->process_name + ")");
-                    break;
-                }
-
-                // First admission for this process -> needs a fresh memory block
-                void* mem = memory_allocator.allocate(mem_per_proc, p->id, p->process_name);
-                if (mem != nullptr) {
-                    process_memory_ptr[p->id] = mem;
-                    core.assign_process(p);
-                    core_cycles[i] = 0;
-                    debug_log("[" + get_current_time() + "] core " + std::to_string(i) +
-                              " ADMIT pid=" + std::to_string(p->id) + " (" + p->process_name + ")");
-                    break;
-                } else {
-                    // Memory is full and there's no backing store -> send the
-                    // process back to the tail of the ready queue and keep scanning.
-                    ready_queue.push(p);
-                    debug_log("[" + get_current_time() + "] core " + std::to_string(i) +
-                              " ADMIT-FAIL pid=" + std::to_string(p->id) + " (" + p->process_name +
-                              ") memory_full, requeued");
-                }
+            // First admission for this process -> needs a fresh memory block
+            void* mem = memory_allocator.allocate(mem_per_proc, p->id, p->process_name);
+            if (mem != nullptr) {
+                process_memory_ptr[p->id] = mem;
+                core.assign_process(p);
+                core_cycles[i] = 0;
+                debug_log("[" + get_current_time() + "] core " + std::to_string(i) +
+                          " ADMIT pid=" + std::to_string(p->id) + " (" + p->process_name + ")");
+            } else {
+                // Memory is full and there's no backing store -> send the
+                // process back to the tail of the ready queue and try again later.
+                ready_queue.push(p);
+                debug_log("[" + get_current_time() + "] core " + std::to_string(i) +
+                          " ADMIT-FAIL pid=" + std::to_string(p->id) + " (" + p->process_name +
+                          ") memory_full, requeued");
             }
         } else if (core.is_idle()) {
             debug_log("[" + get_current_time() + "] core " + std::to_string(i) +

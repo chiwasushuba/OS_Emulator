@@ -76,9 +76,10 @@ void ReportGenerator::generate_report(const std::string& filename) {
 
     //brief summary block at the bottom for better "utilization report" vibes
     outfile << "\nSummary Stats:\n";
+    auto all_pids = process_manager.get_all_pids();
     outfile << "Total Active Processes: " << running_processes.size() << "\n";
     outfile << "Total Finished Processes: " << finished_pids.size() << "\n";
-    outfile << "Total Registered Processes: " << (running_processes.size() + finished_pids.size()) << "\n";
+    outfile << "Total Registered Processes: " << all_pids.size() << "\n";
 
     outfile.close();
 
