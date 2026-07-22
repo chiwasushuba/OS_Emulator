@@ -51,6 +51,14 @@ class Kernel {
         // worth of ticks has elapsed so we can snapshot memory.
         uint64_t global_tick_counter = 0;
         uint64_t quantum_cycle_counter = 0;
+
+        // True once scheduler-start has been called at least once. Ticks
+        // before this don't count toward the memory-snapshot cadence -
+        // otherwise the gap between "initialize" and "scheduler-start"
+        // (however small) silently burns ticks before any process exists,
+        // throwing off the qq numbering (e.g. snapshot 1 firing with 0
+        // processes in memory instead of at the true 4th cycle of activity).
+        bool scheduler_ever_started = false;
         
         // Command implementations
         void initialize_subsystems();

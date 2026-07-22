@@ -30,14 +30,17 @@ void Kernel::main_loop() {
             this->handle_logging(log);
         });
 
+        // Tick the process generator (scheduler-start/stop driven) BEFORE the
+        // scheduler assigns cores. Otherwise a process created this tick sits
+        // in the ready queue and only gets picked up next tick - a 1-tick
+        // admission lag that compounds across every process generated.
+        if (process_generator) {
+            process_generator->tick();
+        }
+
         // Tick the scheduler to manage queue and assign processes
         if (scheduler) {
             scheduler->tick();
-        }
-
-        // Tick the process generator (scheduler-start/stop driven)
-        if (process_generator) {
-            process_generator->tick();
         }
 
         // Every quantum-cycles ticks, snapshot memory to memory_stamp_<qq>.txt
@@ -51,7 +54,7 @@ void Kernel::main_loop() {
 }
 
 void Kernel::take_memory_snapshot_if_due() {
-    if (!memory_allocator || config.quantum_cycles == 0) {
+    if (!memory_allocator || config.quantum_cycles == 0 || !scheduler_ever_started) {
         return;
     }
 
@@ -141,7 +144,10 @@ void Kernel::handle_command(const CommandPacket& packet) {
             break;
 
         case CommandType::START_SCHEDULER:
-            if (process_generator) process_generator->start();
+            if (process_generator) {
+                process_generator->start();
+                scheduler_ever_started = true;
+            }
             break;
 
         case CommandType::STOP_SCHEDULER:
@@ -203,6 +209,7 @@ void Kernel::start_scheduler() {
     }
     if (process_generator) {
         process_generator->start();
+        scheduler_ever_started = true;
     }
 }
 

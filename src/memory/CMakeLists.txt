@@ -1,5 +1,6 @@
 add_library(memory
     memory_allocator.cpp
+    paging_allocator.cpp
 )
 
 target_include_directories(memory
