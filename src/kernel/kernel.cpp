@@ -5,6 +5,7 @@
 #include "core.h"
 #include "os_process.h"
 #include "constants.h"
+#include "paging_allocator.h"
 
 Kernel::Kernel() {
     this->is_running.store(false);
@@ -76,8 +77,16 @@ void Kernel::initialize_subsystems() {
     // Initialize cpu manager
     this->cpu_manager = std::make_unique<CPUManager>(config.num_cpu, config.delays_per_exec);
 
-    // Initialize memory manager (first-fit flat allocator)
-    this->memory_allocator = std::make_unique<FirstFitAllocator>(config.max_overall_mem);
+    // Initialize memory manager — choose allocator based on config.
+    // When mem_per_frame == max_overall_mem (effectively 1 frame = all memory),
+    // paging is meaningless so use the flat first-fit allocator.
+    // Otherwise use the paging allocator with per-frame granularity and
+    // FIFO eviction to the backing store.
+    if (config.mem_per_frame < config.max_overall_mem) {
+        this->memory_allocator = std::make_unique<PagingAllocator>(config.max_overall_mem, config.mem_per_frame);
+    } else {
+        this->memory_allocator = std::make_unique<FirstFitAllocator>(config.max_overall_mem);
+    }
 
     // Initialize scheduler
     if (this->config.scheduler == "rr") {

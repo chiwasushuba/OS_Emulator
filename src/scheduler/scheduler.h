@@ -47,6 +47,11 @@ class FCFSScheduler : public Scheduler {
 private:
     std::queue<Process*> ready_queue;
 
+    // Tracks the memory block currently held by each resident process (by pid),
+    // so memory is allocated on first admission and freed when the process
+    // finishes. Mirrors the same pattern used in RoundRobinScheduler.
+    std::unordered_map<int, void*> process_memory_ptr;
+
 public:
     FCFSScheduler(CPUManager& cpu_m, ProcessManager& proc_m, IMemoryAllocator& mem_alloc, size_t mem_per_proc);
     
