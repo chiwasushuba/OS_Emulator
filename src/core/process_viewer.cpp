@@ -79,6 +79,20 @@ void ProcessViewer::list_processes() {
 
 void ProcessViewer::view_process(std::string process_name) {
     Process* process = process_manager.get_process(process_name);
+    
+    if (process == nullptr) {
+        std::cout << "Process \"" << process_name << "\" not found.\n";
+        return;
+    }
+
+    if (process->access_violation) {
+        std::cout << "Process " << process->process_name
+                  << " shut down due to memory access violation error that occurred at "
+                  << process->violation_timestamp << ". "
+                  << process->violation_address << " invalid.\n";
+        return;
+    }
+
     std::string input;
 
     while (true) {

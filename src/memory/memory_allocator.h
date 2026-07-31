@@ -33,6 +33,13 @@ public:
 
     // Writes "memory_stamp_<quantum_cycle>.txt" to output_dir.
     virtual void generate_memory_stamp(uint64_t quantum_cycle, const std::string& output_dir = "../../") const = 0;
+
+    // Reporting helpers — overridden by concrete allocators
+    virtual size_t get_maximum_size() const { return 0; }
+    virtual size_t get_allocated_size() const { return 0; }
+    virtual size_t get_free_size() const { return 0; }
+    virtual size_t get_num_paged_in() const { return 0; }
+    virtual size_t get_num_paged_out() const { return 0; }
 };
 
 // First-fit flat memory allocator: scans memory from address 0 upward and
@@ -64,9 +71,11 @@ public:
     void generate_memory_stamp(uint64_t quantum_cycle, const std::string& output_dir = "../../") const override;
 
     // Reporting helpers
-    size_t get_maximum_size() const;
-    size_t get_allocated_size() const;
-    size_t get_free_size() const;
+    size_t get_maximum_size() const override;
+    size_t get_allocated_size() const override;
+    size_t get_free_size() const override;
+    size_t get_num_paged_in() const override { return 0; }
+    size_t get_num_paged_out() const override { return 0; }
     size_t get_num_processes_in_memory() const;
     std::vector<MemoryBlock> get_allocated_blocks() const; // sorted ascending by start address
 };

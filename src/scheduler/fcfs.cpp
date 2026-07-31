@@ -1,7 +1,7 @@
 #include "scheduler.h"
 
-FCFSScheduler::FCFSScheduler(CPUManager& cpu_m, ProcessManager& proc_m, IMemoryAllocator& mem_alloc, size_t mem_per_proc)
-    : Scheduler(cpu_m, proc_m, mem_alloc, mem_per_proc) {}
+FCFSScheduler::FCFSScheduler(CPUManager& cpu_m, ProcessManager& proc_m, IMemoryAllocator& mem_alloc)
+    : Scheduler(cpu_m, proc_m, mem_alloc) {}
 
 void FCFSScheduler::add_process(Process* process) {
     if (process != nullptr) {
@@ -49,7 +49,7 @@ void FCFSScheduler::tick() {
                 }
 
                 // First admission — allocate memory for this process
-                void* mem = memory_allocator.allocate(mem_per_proc, p->id, p->process_name);
+                void* mem = memory_allocator.allocate(p->mem_size, p->id, p->process_name);
                 if (mem != nullptr) {
                     process_memory_ptr[p->id] = mem;
                     core.assign_process(p);

@@ -11,8 +11,8 @@ static void debug_log(const std::string& line) {
     }
 }
 
-RoundRobinScheduler::RoundRobinScheduler(CPUManager& cpu_m, ProcessManager& proc_m, IMemoryAllocator& mem_alloc, size_t mem_per_proc, uint64_t quantum)
-    : Scheduler(cpu_m, proc_m, mem_alloc, mem_per_proc), quantum(quantum) {
+RoundRobinScheduler::RoundRobinScheduler(CPUManager& cpu_m, ProcessManager& proc_m, IMemoryAllocator& mem_alloc, uint64_t quantum)
+    : Scheduler(cpu_m, proc_m, mem_alloc), quantum(quantum) {
     // Initialize the core cycles tracker to match the number of cores
     core_cycles.resize(cpu_manager.get_cores().size(), 0);
 }
@@ -98,7 +98,7 @@ void RoundRobinScheduler::tick() {
                 }
 
                 // First admission for this process -> needs a fresh memory block
-                void* mem = memory_allocator.allocate(mem_per_proc, p->id, p->process_name);
+                void* mem = memory_allocator.allocate(p->mem_size, p->id, p->process_name);
                 if (mem != nullptr) {
                     process_memory_ptr[p->id] = mem;
                     core.assign_process(p);

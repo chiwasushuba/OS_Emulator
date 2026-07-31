@@ -1,7 +1,9 @@
+#include <filesystem>
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 #include "config.h"
 
 void validateConfig(Config& config) {
@@ -79,19 +81,57 @@ void validateConfig(Config& config) {
         config.mem_per_frame = default_config.mem_per_frame;
     }
 
-    if(config.mem_per_proc < 1 || config.mem_per_proc > config.max_overall_mem) {
-        std::cerr
-            << "ERROR: mem-per-proc must be [1, max-overall-mem]; using default instead...\n";
+    auto is_power_of_2 = [](uint64_t n) { return n > 0 && (n & (n - 1)) == 0; };
+    if(config.min_mem_per_proc < 64 || config.min_mem_per_proc > 65536 || !is_power_of_2(config.min_mem_per_proc) || config.min_mem_per_proc > config.max_overall_mem) {
+        std::cerr << "ERROR: min-mem-per-proc must be a power of 2 between 64 and 65536, and <= max_overall_mem; using default...\n";
+        config.min_mem_per_proc = default_config.min_mem_per_proc;
+    }
 
-        config.mem_per_proc = default_config.mem_per_proc;
+    if(config.max_mem_per_proc < 64 || config.max_mem_per_proc > 65536 || !is_power_of_2(config.max_mem_per_proc) || config.max_mem_per_proc > config.max_overall_mem) {
+        std::cerr << "ERROR: max-mem-per-proc must be a power of 2 between 64 and 65536, and <= max_overall_mem; using default...\n";
+        config.max_mem_per_proc = default_config.max_mem_per_proc;
+    }
+
+    if(config.min_mem_per_proc > config.max_mem_per_proc) {
+        std::cerr << "ERROR: min-mem-per-proc > max-mem-per-proc; using default...\n";
+        config.min_mem_per_proc = default_config.min_mem_per_proc;
+        config.max_mem_per_proc = default_config.max_mem_per_proc;
     }
 }
 
+namespace {
+std::string resolve_config_path(const std::string& filename) {
+    const std::filesystem::path input_path(filename);
+    std::vector<std::filesystem::path> candidates;
+
+    if (input_path.is_absolute()) {
+        candidates.push_back(input_path);
+    } else {
+        const std::filesystem::path cwd = std::filesystem::current_path();
+        candidates.push_back(cwd / input_path);
+        candidates.push_back(cwd / ".." / input_path);
+        candidates.push_back(cwd / ".." / ".." / input_path);
+        candidates.push_back(std::filesystem::path("config.txt"));
+        candidates.push_back(std::filesystem::path("../config.txt"));
+        candidates.push_back(std::filesystem::path("../../config.txt"));
+    }
+
+    for (const auto& candidate : candidates) {
+        if (std::filesystem::exists(candidate)) {
+            return candidate.string();
+        }
+    }
+
+    return {};
+}
+} // namespace
+
 void loadConfig(const std::string& filename, Config& config) {
-    std::ifstream file(filename);
+    const std::string resolved_path = resolve_config_path(filename);
+    std::ifstream file(resolved_path.empty() ? filename : resolved_path);
 
     if (!file.is_open()) {
-        std::cerr << "Failed to open config file, using default...\n";
+        std::cerr << "Failed to open config file '" << filename << "', using default...\n";
         return;
     }
 
@@ -138,8 +178,11 @@ void loadConfig(const std::string& filename, Config& config) {
         else if (key == "mem-per-frame") {
             config.mem_per_frame = std::stoull(value);
         }
-        else if (key == "mem-per-proc") {
-            config.mem_per_proc = std::stoull(value);
+        else if (key == "min-mem-per-proc") {
+            config.min_mem_per_proc = std::stoull(value);
+        }
+        else if (key == "max-mem-per-proc") {
+            config.max_mem_per_proc = std::stoull(value);
         }
         else {
             std::cerr << "Unknown parameter: " << key << '\n';

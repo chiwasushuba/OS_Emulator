@@ -119,11 +119,36 @@ class Process {
         ProcessState state = ProcessState::READY;
         std::string process_name;
         
+        size_t mem_size = 0;
+
+        // Virtual memory for this process
+        std::vector<uint16_t> memory_space;
+
+        // Access violation state
+        bool access_violation = false;
+        std::string violation_address = "";
+        std::string violation_timestamp = "";
+
+        // Symbol table limit
+        static constexpr size_t MAX_VARIABLES = 32;
+
+        // Initialize the memory space based on mem_size
+        void init_memory() {
+            if (mem_size > 0)
+                memory_space.assign(mem_size / sizeof(uint16_t), 0);
+        }
+
         bool execute_next_instruction(LogEntry& log);    // should, LogEntry& log call logging
         
         void add_instruction(std::unique_ptr<Instruction> new_instruction);
 
         void set_variable(const std::string& name, uint16_t value) {
+            auto it = symbol_table.find(name);
+            if (it != symbol_table.end()) {
+                it->second = value;  // update existing — always allowed
+                return;
+            }
+            if (symbol_table.size() >= MAX_VARIABLES) return;  // silently ignore
             symbol_table[name] = value;
         }
 
@@ -234,6 +259,28 @@ public:
     bool execute(Process& context, LogEntry& log) override;
     bool is_completed() const override;
     void reset() override;
+};
+
+// READ(var, hex_address) — loads uint16 from process memory into variable
+class ReadInstruction : public Instruction {
+private:
+    std::string var;
+    uint32_t address;
+public:
+    ReadInstruction(std::string var_name, uint32_t addr)
+        : var(std::move(var_name)), address(addr) {}
+    bool execute(Process& context, LogEntry& log) override;
+};
+
+// WRITE(hex_address, value_or_var) — stores uint16 into process memory
+class WriteInstruction : public Instruction {
+private:
+    uint32_t address;
+    Operand value;
+public:
+    WriteInstruction(uint32_t addr, Operand val)
+        : address(addr), value(val) {}
+    bool execute(Process& context, LogEntry& log) override;
 };
 
 // Helper funtions

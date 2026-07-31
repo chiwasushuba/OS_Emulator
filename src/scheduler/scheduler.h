@@ -11,10 +11,9 @@ protected:
     CPUManager& cpu_manager;
     ProcessManager& process_manager;
     IMemoryAllocator& memory_allocator;
-    size_t mem_per_proc;
 public:
-    Scheduler(CPUManager& cpu_m, ProcessManager& proc_m, IMemoryAllocator& mem_alloc, size_t mem_per_proc)
-        : cpu_manager(cpu_m), process_manager(proc_m), memory_allocator(mem_alloc), mem_per_proc(mem_per_proc) {}
+    Scheduler(CPUManager& cpu_m, ProcessManager& proc_m, IMemoryAllocator& mem_alloc)
+        : cpu_manager(cpu_m), process_manager(proc_m), memory_allocator(mem_alloc) {}
     
     virtual ~Scheduler() = default;
 
@@ -37,7 +36,7 @@ private:
     std::unordered_map<int, void*> process_memory_ptr;
 
 public:
-    RoundRobinScheduler(CPUManager& cpu_m, ProcessManager& proc_m, IMemoryAllocator& mem_alloc, size_t mem_per_proc, uint64_t quantum);
+    RoundRobinScheduler(CPUManager& cpu_m, ProcessManager& proc_m, IMemoryAllocator& mem_alloc, uint64_t quantum);
     
     void add_process(Process* process) override;
     void tick() override;
@@ -53,7 +52,7 @@ private:
     std::unordered_map<int, void*> process_memory_ptr;
 
 public:
-    FCFSScheduler(CPUManager& cpu_m, ProcessManager& proc_m, IMemoryAllocator& mem_alloc, size_t mem_per_proc);
+    FCFSScheduler(CPUManager& cpu_m, ProcessManager& proc_m, IMemoryAllocator& mem_alloc);
     
     void add_process(Process* process) override;
     void tick() override;

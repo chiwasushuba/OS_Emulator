@@ -1,7 +1,10 @@
+<!-- This file is auto-generated. Do not edit manually. -->
 # CPU Skill
 
 **Name**: cpu
 
-## Description
+**Description**: Skill for CPU execution, CPU manager logic, and processor coordination.
 
-Subsystem skill for CPU execution, CPU manager logic, and processor coordination. Use it for execution paths, core state, and instruction flow tied to CPU behavior.
+# CPU Skill
+
+Use for execution paths, core state, and instruction flow tied to CPU behavior.

@@ -210,3 +210,57 @@ void SleepInstruction::reset() {
     state = SleepState::AWAKE;
 }
 
+bool ReadInstruction::execute(Process& context, LogEntry& log) {
+    initialize_entry(context, log);
+
+    // Bounds check: address + 1 (need 2 bytes for uint16) must be within mem_size
+    if (address + sizeof(uint16_t) > context.mem_size) {
+        context.access_violation = true;
+        context.violation_timestamp = get_current_time();
+        std::ostringstream oss;
+        oss << "0x" << std::hex << std::uppercase << address;
+        context.violation_address = oss.str();
+        log.message = "ACCESS VIOLATION: READ at " + context.violation_address;
+        return true;
+    }
+
+    // Read from memory (address is byte offset, each slot is 2 bytes)
+    uint16_t val = context.memory_space[address / sizeof(uint16_t)];
+    context.set_variable(var, val);
+
+    std::ostringstream addr_ss;
+    addr_ss << "0x" << std::hex << std::uppercase << address;
+    std::stringstream ss;
+    ss << std::right << std::setw(10) << "READ: ";
+    ss << var << " = " << val << " from " << addr_ss.str();
+    log.message = ss.str();
+    return true;
+}
+
+bool WriteInstruction::execute(Process& context, LogEntry& log) {
+    initialize_entry(context, log);
+
+    // Bounds check
+    if (address + sizeof(uint16_t) > context.mem_size) {
+        context.access_violation = true;
+        context.violation_timestamp = get_current_time();
+        std::ostringstream oss;
+        oss << "0x" << std::hex << std::uppercase << address;
+        context.violation_address = oss.str();
+        log.message = "ACCESS VIOLATION: WRITE at " + context.violation_address;
+        return true;
+    }
+
+    // Resolve and clamp value to uint16 range (resolve_operand already returns uint16_t)
+    uint16_t resolved = resolve_operand(context, value);
+
+    context.memory_space[address / sizeof(uint16_t)] = resolved;
+
+    std::ostringstream addr_ss;
+    addr_ss << "0x" << std::hex << std::uppercase << address;
+    std::stringstream ss;
+    ss << std::right << std::setw(10) << "WRITE: ";
+    ss << resolved << " to " << addr_ss.str();
+    log.message = ss.str();
+    return true;
+}

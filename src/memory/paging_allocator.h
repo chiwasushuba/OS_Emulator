@@ -36,13 +36,13 @@ public:
     // Reporting helpers - mirrors FirstFitAllocator's surface so the rest of
     // the codebase (report_generator, process_viewer) doesn't need to care
     // which allocator implementation is actually in use.
-    size_t get_maximum_size() const;
-    size_t get_allocated_size() const;
-    size_t get_free_size() const;
+    size_t get_maximum_size() const override;
+    size_t get_allocated_size() const override;
+    size_t get_free_size() const override;
     size_t get_num_processes_in_memory() const;
 
-    size_t get_num_paged_in() const;
-    size_t get_num_paged_out() const;
+    size_t get_num_paged_in() const override;
+    size_t get_num_paged_out() const override;
 
 private:
     size_t maximumSize;

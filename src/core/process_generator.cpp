@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <cmath>
 #include <vector>
 #include <iomanip>
 #include <sstream>
@@ -181,6 +182,12 @@ Process* ProcessGenerator::generate_one_process(std::string name) {
     proc->process_name = name;
     proc->state = ProcessState::READY;
     proc->current_instruction = 0;
+
+    // Pick a random power-of-2 between min and max
+    int min_exp = static_cast<int>(std::log2(config.min_mem_per_proc));
+    int max_exp = static_cast<int>(std::log2(config.max_mem_per_proc));
+    std::uniform_int_distribution<int> mem_dist(min_exp, max_exp);
+    proc->mem_size = static_cast<size_t>(1) << mem_dist(rng);
 
     // Randomize instruction count between [min_ins, max_ins]
     std::uniform_int_distribution<uint64_t> dist(config.min_ins, config.max_ins);

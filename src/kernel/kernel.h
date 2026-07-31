@@ -14,6 +14,8 @@ enum class CommandType {
     STOP_SCHEDULER,
     SCREEN,
     REPORT,
+    PROCESS_SMI,
+    VMSTAT,
     EXIT,
     UNKNOWN
 };
@@ -21,6 +23,7 @@ enum class CommandType {
 enum class ScreenAction {
     LIST,
     CREATE,
+    CREATE_CUSTOM,
     READ,
     NONE
 };
@@ -29,6 +32,8 @@ struct CommandPacket {
     CommandType type = CommandType::UNKNOWN;
     ScreenAction screen_action = ScreenAction::NONE;
     std::string payload = "";   // for screen command primarily
+    uint64_t mem_size = 0;
+    std::string raw_instructions = "";
 };
 
 class Kernel {
@@ -65,7 +70,9 @@ class Kernel {
         void start_scheduler();
         void stop_scheduler();
         void generate_report_file();
-        void execute_screen_subsystem(const ScreenAction action, const std::string& payload);
+        void show_process_smi();
+        void show_vmstat();
+        void execute_screen_subsystem(const CommandPacket& packet);
         void take_memory_snapshot_if_due();
 
     public:

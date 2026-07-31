@@ -4,15 +4,16 @@ This document describes the specialized skills available for agents in this proj
 
 ## Available Skills
 
-- [antigravity-guide](antigravity-guide.md)
-- [kernel](kernel.md)
-- [cpu](cpu.md)
-- [scheduler](scheduler.md)
-- [memory](memory.md)
-- [process](process.md)
-- [cli](cli.md)
-- [verification](verification.md)
-- [prompt-engineering](prompt-engineering.md)
+- [Antigravity Guide](antigravity-guide.md)
+- [cli](cli.md) - Skill for command handling, console flow, and user-facing orchestration.
+- [cpu](cpu.md) - Skill for CPU execution, CPU manager logic, and processor coordination.
+- [kernel](kernel.md) - Skill for kernel control flow, boot sequencing, and cross-cutting OS behavior.
+- [memory](memory.md) - Skill for allocation, paging, memory layout, and memory-management policy.
+- [Os Emulator Architecture](os_emulator_architecture.md)
+- [process](process.md) - Skill for process lifecycle, state tracking, logging, and process representation.
+- [prompt-engineering](prompt-engineering.md) - Skill for prompt refinement, scope clarification, instruction shaping, and response-format tuning.
+- [scheduler](scheduler.md) - Skill for scheduling policy and dispatch logic, including FCFS, round robin, queueing, and time-slice behavior.
+- [verification](verification.md) - Skill for regression checks, smoke tests, and validation evidence.
 
 ## Using Skills
 

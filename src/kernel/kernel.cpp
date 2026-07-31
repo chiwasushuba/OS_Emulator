@@ -4,6 +4,7 @@
 #include "kernel.h"
 #include "core.h"
 #include "os_process.h"
+#include "instruction_parser.h"
 #include "constants.h"
 #include "paging_allocator.h"
 
@@ -90,13 +91,13 @@ void Kernel::initialize_subsystems() {
 
     // Initialize scheduler
     if (this->config.scheduler == "rr") {
-        this->scheduler = std::make_unique<RoundRobinScheduler>(*this->cpu_manager, this->process_manager, *this->memory_allocator, this->config.mem_per_proc, this->config.quantum_cycles);
+        this->scheduler = std::make_unique<RoundRobinScheduler>(*this->cpu_manager, this->process_manager, *this->memory_allocator, this->config.quantum_cycles);
     } else if (this->config.scheduler == "fcfs") {
-        this->scheduler = std::make_unique<FCFSScheduler>(*this->cpu_manager, this->process_manager, *this->memory_allocator, this->config.mem_per_proc);
+        this->scheduler = std::make_unique<FCFSScheduler>(*this->cpu_manager, this->process_manager, *this->memory_allocator);
     } else {
         // Fallback if config has an invalid name
         std::cout << "Warning: Unknown scheduler '" << this->config.scheduler << "' in config.txt. Defaulting to FCFS.\n";
-        this->scheduler = std::make_unique<FCFSScheduler>(*this->cpu_manager, this->process_manager, *this->memory_allocator, this->config.mem_per_proc);
+        this->scheduler = std::make_unique<FCFSScheduler>(*this->cpu_manager, this->process_manager, *this->memory_allocator);
     }
 
     // Initialize the process generator (controlled by scheduler-start / scheduler-stop)
@@ -112,7 +113,8 @@ void Kernel::initialize_subsystems() {
     std::cout << "delays_per_exec:\t" << this->config.delays_per_exec << "\n";
     std::cout << "max_overall_mem:\t" << this->config.max_overall_mem << "\n";
     std::cout << "mem_per_frame:\t\t" << this->config.mem_per_frame << "\n";
-    std::cout << "mem_per_proc:\t\t" << this->config.mem_per_proc << "\n";
+    std::cout << "min_mem_per_proc:\t" << this->config.min_mem_per_proc << "\n";
+    std::cout << "max_mem_per_proc:\t" << this->config.max_mem_per_proc << "\n";
     std::cout << "\n";
 
     this->is_initialized.store(true);
@@ -169,7 +171,15 @@ void Kernel::handle_command(const CommandPacket& packet) {
 
         case CommandType::SCREEN:
             // Delegate smoothly to internal screen logic using the sub-action enum
-            this->execute_screen_subsystem(packet.screen_action, packet.payload);
+            this->execute_screen_subsystem(packet);
+            break;
+
+        case CommandType::PROCESS_SMI:
+            this->show_process_smi();
+            break;
+
+        case CommandType::VMSTAT:
+            this->show_vmstat();
             break;
 
         case CommandType::EXIT:
@@ -183,7 +193,10 @@ void Kernel::handle_command(const CommandPacket& packet) {
     }
 }
 
-void Kernel::execute_screen_subsystem(ScreenAction action, const std::string& payload) {
+void Kernel::execute_screen_subsystem(const CommandPacket& packet) {
+    ScreenAction action = packet.screen_action;
+    const std::string& payload = packet.payload;
+    
     if (action == ScreenAction::NONE) {
         return;
     }
@@ -198,7 +211,46 @@ void Kernel::execute_screen_subsystem(ScreenAction action, const std::string& pa
         case ScreenAction::CREATE:
             {
                 Process* created_process = process_generator.get()->generate_one_process(payload);
+                // If explicit mem_size was provided, override the random one
+                if (packet.mem_size > 0) {
+                    created_process->mem_size = packet.mem_size;
+                }
+                created_process->init_memory();
                 viewer.view_process(created_process->process_name);
+            }
+            break;
+        case ScreenAction::CREATE_CUSTOM:
+            {
+                // Parse instructions
+                auto instructions = parse_instructions(packet.raw_instructions);
+                
+                // Validate count (1-50)
+                if (instructions.empty() || instructions.size() > 50) {
+                    std::cout << "invalid command\n";
+                    break;
+                }
+                
+                // Create process
+                int pid = process_manager.create_process(payload);
+                Process* proc = process_manager.get_process(pid);
+                if (!proc) {
+                    std::cout << "Error creating process.\n";
+                    break;
+                }
+                proc->process_name = payload;
+                proc->mem_size = packet.mem_size;
+                proc->init_memory();
+                proc->state = ProcessState::READY;
+                proc->current_instruction = 0;
+                
+                // Add parsed instructions
+                for (auto& inst : instructions) {
+                    proc->add_instruction(std::move(inst));
+                }
+                
+                // Add to scheduler
+                scheduler->add_process(proc);
+                viewer.view_process(proc->process_name);
             }
             break;
         case ScreenAction::READ:
@@ -242,4 +294,82 @@ void Kernel::generate_report_file() {
 
     // Call file generator implementation
     reporter.generate_report("../../csopesy_report.txt");
+}
+
+void Kernel::show_process_smi() {
+    int total_cores = config.num_cpu;
+    int busy_cores = cpu_manager ? cpu_manager->get_cores_used() : 0;
+    int cpu_util = (total_cores > 0) ? (busy_cores * 100 / total_cores) : 0;
+
+    size_t used = memory_allocator ? memory_allocator->get_allocated_size() : 0;
+    size_t total = memory_allocator ? memory_allocator->get_maximum_size() : 0;
+    int mem_util = (total > 0) ? static_cast<int>(used * 100 / total) : 0;
+
+    std::cout << "-----------------------------------------------\n";
+    std::cout << "| PROCESS-SMI V01.00 Driver Version: 01.00    |\n";
+    std::cout << "-----------------------------------------------\n";
+    std::cout << "CPU-Util: " << cpu_util << "%\n";
+    std::cout << "Memory Usage: " << used << "MiB / " << total << "MiB\n";
+    std::cout << "Memory Util: " << mem_util << "%\n\n";
+
+    std::cout << "===============================================\n";
+    std::cout << "Running processes and memory usage:\n";
+    std::cout << "-----------------------------------------------\n";
+
+    auto active_pids = process_manager.get_active_pids();
+    for (int pid : active_pids) {
+        Process* p = process_manager.get_process(pid);
+        if (p) {
+            std::cout << p->process_name << " " << p->mem_size << "MiB\n";
+        }
+    }
+
+    std::cout << "-----------------------------------------------\n";
+}
+
+void Kernel::show_vmstat() {
+    size_t total = memory_allocator ? memory_allocator->get_maximum_size() : 0;
+    size_t used = memory_allocator ? memory_allocator->get_allocated_size() : 0;
+    size_t free_mem = total - used;
+
+    // Active = memory used by RUNNING processes
+    // Inactive = memory used by non-RUNNING (READY/WAITING) processes
+    size_t active = 0, inactive = 0;
+    for (int pid : process_manager.get_active_pids()) {
+        Process* p = process_manager.get_process(pid);
+        if (!p) continue;
+        if (p->state == ProcessState::RUNNING) {
+            active += p->mem_size;
+        } else {
+            inactive += p->mem_size;
+        }
+    }
+
+    size_t paged_in = memory_allocator ? memory_allocator->get_num_paged_in() : 0;
+    size_t paged_out = memory_allocator ? memory_allocator->get_num_paged_out() : 0;
+
+    // CPU ticks
+    uint64_t idle_ticks = 0, active_ticks = 0, total_ticks = 0;
+    if (cpu_manager) {
+        auto& cores = cpu_manager->get_cores();
+        for (const auto& core : cores) {
+            double util = core.get_utilization();
+            // Approximate from utilization percentage (not perfectly precise but the
+            // spec only asks for the general shape of vmstat -s output)
+            total_ticks += 100;
+            active_ticks += static_cast<uint64_t>(util);
+            idle_ticks += static_cast<uint64_t>(100 - util);
+        }
+    }
+
+    std::cout << total      << " K total memory\n";
+    std::cout << used       << " K used memory\n";
+    std::cout << active     << " K active memory\n";
+    std::cout << inactive   << " K inactive memory\n";
+    std::cout << free_mem   << " K free memory\n";
+    std::cout << idle_ticks  << " idle cpu ticks\n";
+    std::cout << active_ticks << " active cpu ticks\n";
+    std::cout << total_ticks << " total cpu ticks\n";
+    std::cout << paged_in   << " pages paged in\n";
+    std::cout << paged_out  << " pages paged out\n";
 }

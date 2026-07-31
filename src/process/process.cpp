@@ -1,8 +1,9 @@
+#include <iostream>
 #include "os_process.h"
 
 bool Process::execute_next_instruction(LogEntry& log) {
-    // Check if trying to execute on a finished process
-    if (is_finished()) {
+    // Check if trying to execute on a finished or violated process
+    if (is_finished() || access_violation) {
         state = ProcessState::FINISHED;
         return false;
     }
@@ -10,8 +11,16 @@ bool Process::execute_next_instruction(LogEntry& log) {
     initialize_entry(*this, log);
     Instruction* inst = instruction_list[current_instruction].get();
 
-    // Execute current instruction (technically bool not needed anymore but im too lazy to refactor)
+    // Execute current instruction
+    std::cout << "\nDEBUG: Executing instruction " << current_instruction << " for process " << process_name << "\n";
     bool should_log = inst->execute(*this, log);
+
+    // Check if instruction caused an access violation
+    if (access_violation) {
+        state = ProcessState::FINISHED;
+        return should_log;  // still log the violation message
+    }
+
     if (inst->is_completed()) {
         log.event_type = LogEventType::INSTRUCTION_FINISHED;
     }
