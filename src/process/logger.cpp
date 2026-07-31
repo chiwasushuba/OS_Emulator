@@ -25,8 +25,8 @@ std::vector<int> ProcessLogger::get_process_ids()
     std::vector<int> ids;
     ids.reserve(process_logs.size());
 
-    for (const auto& [pid, _] : process_logs) {
-        ids.push_back(pid);
+    for (const auto& entry : process_logs) {
+        ids.push_back(entry.first);
     }
 
     return ids;

@@ -1,9 +1,9 @@
-#include <filesystem>
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <vector>
+#include <sys/stat.h>
 #include "config.h"
 
 void validateConfig(Config& config) {
@@ -100,25 +100,29 @@ void validateConfig(Config& config) {
 }
 
 namespace {
-std::string resolve_config_path(const std::string& filename) {
-    const std::filesystem::path input_path(filename);
-    std::vector<std::filesystem::path> candidates;
+bool file_exists(const std::string& path) {
+    struct stat buffer;
+    return stat(path.c_str(), &buffer) == 0;
+}
 
-    if (input_path.is_absolute()) {
-        candidates.push_back(input_path);
+std::string resolve_config_path(const std::string& filename) {
+    std::vector<std::string> candidates;
+
+    if (!filename.empty() && filename[0] == '/' || filename.size() > 1 && filename[1] == ':') {
+        candidates.push_back(filename);
     } else {
-        const std::filesystem::path cwd = std::filesystem::current_path();
-        candidates.push_back(cwd / input_path);
-        candidates.push_back(cwd / ".." / input_path);
-        candidates.push_back(cwd / ".." / ".." / input_path);
-        candidates.push_back(std::filesystem::path("config.txt"));
-        candidates.push_back(std::filesystem::path("../config.txt"));
-        candidates.push_back(std::filesystem::path("../../config.txt"));
+        candidates.push_back(filename);
+        candidates.push_back("./" + filename);
+        candidates.push_back("../" + filename);
+        candidates.push_back("../../" + filename);
+        candidates.push_back("config.txt");
+        candidates.push_back("../config.txt");
+        candidates.push_back("../../config.txt");
     }
 
     for (const auto& candidate : candidates) {
-        if (std::filesystem::exists(candidate)) {
-            return candidate.string();
+        if (file_exists(candidate)) {
+            return candidate;
         }
     }
 

@@ -3,8 +3,8 @@
 #include <unordered_map>
 #include <vector>
 #include <cstdint>
-#include <mutex>
 #include <memory>
+#include "../compat/mutex_compat.h"
 
 class Process;
 

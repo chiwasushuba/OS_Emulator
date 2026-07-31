@@ -25,9 +25,10 @@ Process* ProcessManager::get_process(int pid) {
 
 Process* ProcessManager::get_process(const std::string& process_name) {
     std::lock_guard<std::mutex> lock(pm_mutex);
-    for (auto& [pid, process] : processes) {
+    for (auto it = processes.begin(); it != processes.end(); ++it) {
+        Process* process = it->second.get();
         if (process->process_name == process_name) {
-            return process.get();
+            return process;
         }
     }
 
@@ -37,9 +38,10 @@ Process* ProcessManager::get_process(const std::string& process_name) {
 std::vector<int> ProcessManager::get_active_pids() const {
     std::lock_guard<std::mutex> lock(pm_mutex);
     std::vector<int> pids;
-    for (const auto& [pid, process] : processes) {
+    for (auto it = processes.begin(); it != processes.end(); ++it) {
+        Process* process = it->second.get();
         if (process->core_id != -1 && process->state != ProcessState::FINISHED) {
-            pids.push_back(pid);
+            pids.push_back(it->first);
         }
     }
     return pids;
@@ -48,9 +50,10 @@ std::vector<int> ProcessManager::get_active_pids() const {
 std::vector<int> ProcessManager::get_finished_pids() const {
     std::lock_guard<std::mutex> lock(pm_mutex);
     std::vector<int> pids;
-    for (const auto& [pid, process] : processes) {
+    for (auto it = processes.begin(); it != processes.end(); ++it) {
+        Process* process = it->second.get();
         if (process->state == ProcessState::FINISHED) {
-            pids.push_back(pid);
+            pids.push_back(it->first);
         }
     }
     return pids;
@@ -59,8 +62,8 @@ std::vector<int> ProcessManager::get_finished_pids() const {
 std::vector<int> ProcessManager::get_all_pids() const {
     std::lock_guard<std::mutex> lock(pm_mutex);
     std::vector<int> pids;
-    for (const auto& [pid, process] : processes) {
-        pids.push_back(pid);
+    for (auto it = processes.begin(); it != processes.end(); ++it) {
+        pids.push_back(it->first);
     }
     return pids;
 }
@@ -69,7 +72,8 @@ std::vector<ProcessSnapshot> ProcessManager::get_active_processes() const {
     std::lock_guard<std::mutex> lock(pm_mutex); // 🔒 Protects the read
     
     std::vector<ProcessSnapshot> active_procs;
-    for (const auto& [pid, process] : processes) {
+    for (auto it = processes.begin(); it != processes.end(); ++it) {
+        Process* process = it->second.get();
         // Evaluate the criteria strictly inside the lock
         if (process->core_id != -1 && process->state != ProcessState::FINISHED) {
             active_procs.push_back(ProcessSnapshot{

@@ -1,9 +1,9 @@
 #pragma once
 #include <string>
 #include <vector>
-#include <mutex>
 #include <cstddef>
 #include <cstdint>
+#include "../compat/mutex_compat.h"
 
 // A contiguous chunk of memory currently owned by a process.
 // start is inclusive, end is exclusive (end - start == size allocated).

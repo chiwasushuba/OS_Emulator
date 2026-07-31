@@ -3,7 +3,7 @@
 #include <vector>
 #include <unordered_map>
 #include <deque>
-#include <mutex>
+#include "../compat/mutex_compat.h"
 
 // A single Page Table Entry: which physical frame (if any) currently holds
 // this page. If the page isn't resident, it has been written to the backing

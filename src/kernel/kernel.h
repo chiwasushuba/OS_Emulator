@@ -1,7 +1,7 @@
 #pragma once
 #include <atomic>
-#include <thread>
 #include "cpu.h"
+#include "../compat/mutex_compat.h"
 #include "core.h"
 #include "console.h"
 #include "command_handler.h"
