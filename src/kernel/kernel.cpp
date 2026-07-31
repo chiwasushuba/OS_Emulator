@@ -1,4 +1,3 @@
-#include <thread>
 #include <iostream>
 #include "config.h"
 #include "kernel.h"

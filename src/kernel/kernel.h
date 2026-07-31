@@ -1,5 +1,6 @@
 #pragma once
 #include <atomic>
+#include "../compat/thread_compat.h"
 #include "cpu.h"
 #include "../compat/mutex_compat.h"
 #include "core.h"
