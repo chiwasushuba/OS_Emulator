@@ -36,33 +36,26 @@ void FCFSScheduler::tick() {
         
         // 2. If the core is idle and there are processes in the queue, assign one.
         // FCFS is non-preemptive, so we never interrupt a running process.
-        // Scan the queue (bounded single pass) to find the first process we
-        // can actually admit into memory right now — this prevents a growing
-        // backlog of unadmittable processes from starving admittable ones.
+        // We strictly adhere to FCFS by waiting on the head of the queue if
+        // there isn't enough memory to admit it yet.
         if (core.is_idle() && !ready_queue.empty()) {
-            size_t attempts = ready_queue.size();
+            Process* p = ready_queue.front();
 
-            for (size_t attempt = 0; attempt < attempts && core.is_idle(); ++attempt) {
-                Process* p = ready_queue.front();
+            // Already resident in memory (defensive — shouldn't happen
+            // under FCFS since there's no preemption, but handle it)
+            if (process_memory_ptr.find(p->id) != process_memory_ptr.end()) {
                 ready_queue.pop();
-
-                // Already resident in memory (defensive — shouldn't happen
-                // under FCFS since there's no preemption, but handle it)
-                if (process_memory_ptr.find(p->id) != process_memory_ptr.end()) {
-                    core.assign_process(p);
-                    break;
-                }
-
+                core.assign_process(p);
+            } else {
                 // First admission — allocate memory for this process
                 void* mem = memory_allocator.allocate(p->mem_size, p->id, p->process_name);
                 if (mem != nullptr) {
+                    ready_queue.pop();
                     process_memory_ptr[p->id] = mem;
                     core.assign_process(p);
-                    break;
-                } else {
-                    // Memory full — requeue at tail and try the next one
-                    ready_queue.push(p);
                 }
+                // Memory full — we do NOT requeue. We leave it at the front of the 
+                // queue and wait for memory to free up in subsequent ticks.
             }
         }
     }

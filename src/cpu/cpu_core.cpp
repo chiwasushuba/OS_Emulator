@@ -26,8 +26,11 @@ Process* CPUCore::get_process() const {
 }
 
 void CPUCore::remove_process() {
-    current_process->core_id = -1;
+    if (current_process) {
+        current_process->core_id = -1;
+    }
     current_process = nullptr;
+    ticks_since_last_exec = 0;
 }
 
 bool CPUCore::tick(LogEntry& log) {

@@ -1,0 +1,44 @@
+
+ ______   ______   ______   ______   ______   ______   __  __ 
+/_____/\ /_____/\ /_____/\ /_____/\ /_____/\ /_____/\ /_/\/_/\
+\:::__\/ \::::_\/_\:::_ \ \\:::_ \ \\::::_\/_\::::_\/_\ \ \ \ \
+ \:\ \  __\:\/___/\\:\ \ \ \\:(_) \ \\:\/___/\\:\/___/\\:\_\ \ \
+  \:\ \/_/\\_::._\:\\:\ \ \ \\: ___\/ \::___\/_\_::._\:\\::::_\/
+   \:\_\ \ \ /____\:\\:\_\ \ \\ \ \    \:\____/\ /____\:\ \::\ \
+    \_____\/ \_____\/ \_____\/ \_\/     \_____\/ \_____\/  \__\/
+
+-------------------------------------------------------------
+Welcome to CSOPESY_Emulator!!
+Developers:
+Bernandino, Adrian Rafael
+Corpuz, Thara Mae
+Esleta, Joshua James
+Santos, Francine Hannah
+
+Last updated: 06-27-2026
+-------------------------------------------------------------
+
+root:\> Initializing system subsystems...
+
+---config loaded with the following values---
+num_cpu:		2
+scheduler:		rr
+quantum_cycles:		4
+batch_process_freq:	1
+min_ins:		100
+max_ins:		100
+delays_per_exec:	0
+max_overall_mem:	512
+mem_per_frame:		16
+min_mem_per_proc:	4096
+max_mem_per_proc:	4096
+
+
+root:\> Process proc1 shut down due to memory access violation error that occurred at 08/02/2026 07:25:29PM. 0x0 invalid.
+
+root:\> 
+STDERR:
+ERROR: mem-per-frame must be a power of 2 between 64 and 65536; using default instead...
+ERROR: min-mem-per-proc must be a power of 2 between 64 and 65536, and <= max_overall_mem; using default...
+ERROR: max-mem-per-proc must be a power of 2 between 64 and 65536, and <= max_overall_mem; using default...
+

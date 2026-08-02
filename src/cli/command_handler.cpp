@@ -50,7 +50,7 @@ bool CommandHandler::isValidCommand(const std::vector<std::string>& tokens) {
         if (tokens.size() == 2 && tokens[1] == "-ls") return true;
         if (tokens.size() >= 3 && tokens[1] == "-s")  return true;  // 3 or 4 tokens
         if (tokens.size() == 3 && tokens[1] == "-r")   return true;
-        if (tokens.size() >= 4 && tokens[1] == "-c")   return true;  // name + size + instructions
+        if (tokens.size() == 5 && tokens[1] == "-c")   return true;  // name + size + instructions
         return false;
     }
 
@@ -148,7 +148,7 @@ bool CommandHandler::handleCommand(const std::string& input) {
             } else if (tokens[1] == "-r" && tokens.size() > 2) {
                 packet.screen_action = ScreenAction::READ;
                 packet.payload = tokens[2]; // screen name
-            } else if (tokens[1] == "-c" && tokens.size() >= 4) {
+            } else if (tokens[1] == "-c" && tokens.size() == 5) {
                 packet.screen_action = ScreenAction::CREATE_CUSTOM;
                 packet.payload = tokens[2]; // screen name
 
