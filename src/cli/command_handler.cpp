@@ -65,8 +65,11 @@ void CommandHandler::help() {
               << "  scheduler-start      - Start generating background processes\n"
               << "  scheduler-stop       - Stop generating background processes\n"
               << "  report-util          - Report current CPU utilization\n"
+              << "  process-smi          - Report CPU and memory usage\n"
+              << "  vmstat               - Report memory and paging statistics\n"
               << "  screen -ls           - List all active screens (processes)\n"
-              << "  screen -s <name>     - Create and attach to a new screen (process)\n"
+              << "  screen -s <name> [mem_size] - Create and attach to a new screen\n"
+              << "  screen -c <name> <mem_size> \"instructions\" - Create a custom process\n"
               << "  screen -r <name>     - Resume and attach to an existing screen\n"
               << "  help                 - Display this help message\n";
 }

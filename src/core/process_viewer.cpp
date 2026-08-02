@@ -93,6 +93,11 @@ void ProcessViewer::view_process(std::string process_name) {
         return;
     }
 
+    if (process->state == ProcessState::FINISHED || process->state == ProcessState::TERMINATED) {
+        std::cout << "Process " << process->process_name << " has finished execution.\n";
+        return;
+    }
+
     std::string input;
 
     while (true) {

@@ -4,7 +4,11 @@
 bool Process::execute_next_instruction(LogEntry& log) {
     // Check if trying to execute on a finished or violated process
     if (is_finished() || access_violation) {
-        state = ProcessState::FINISHED;
+        if (access_violation) {
+            state = ProcessState::TERMINATED;
+        } else {
+            state = ProcessState::FINISHED;
+        }
         return false;
     }
 
@@ -17,7 +21,7 @@ bool Process::execute_next_instruction(LogEntry& log) {
 
     // Check if instruction caused an access violation
     if (access_violation) {
-        state = ProcessState::FINISHED;
+        state = ProcessState::TERMINATED;
         return should_log;  // still log the violation message
     }
 
@@ -25,7 +29,13 @@ bool Process::execute_next_instruction(LogEntry& log) {
         log.event_type = LogEventType::INSTRUCTION_FINISHED;
     }
 
-    // Move to next instruction only if current one completed
+    // Page-faulting instructions must be retried on the next tick instead of
+    // advancing to the following instruction.
+    if (!should_log && log.message.rfind("PAGE FAULT:", 0) == 0) {
+        return false;
+    }
+
+    // Move to next instruction only if current one completed and did not hit a page-fault-like retry case.
     if (inst->is_completed()) {
         current_instruction++;
     }

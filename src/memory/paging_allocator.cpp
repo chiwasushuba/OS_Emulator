@@ -28,8 +28,14 @@ int PagingAllocator::obtainFrame() {
     int victimPid = frameOwnerPid[victimFrame];
     int victimPage = frameOwnerPage[victimFrame];
 
-    pageTables[victimPid][victimPage].frame = -1;
-    pageTables[victimPid][victimPage].on_backing_store = true;
+    if (victimPid != -1) {
+        auto victimTableIt = pageTables.find(victimPid);
+        if (victimTableIt != pageTables.end() && victimPage >= 0 && static_cast<size_t>(victimPage) < victimTableIt->second.size()) {
+            victimTableIt->second[victimPage].frame = -1;
+            victimTableIt->second[victimPage].on_backing_store = true;
+            victimTableIt->second[victimPage].is_dirty = false;
+        }
+    }
     numPagedOut++;
 
     std::ofstream backing("../../csopesy-backing-store.txt", std::ios::app);
@@ -42,6 +48,67 @@ int PagingAllocator::obtainFrame() {
     frameOwnerPage[victimFrame] = -1;
 
     return victimFrame;
+}
+
+size_t PagingAllocator::get_page_size() const {
+    return frameSize;
+}
+
+size_t PagingAllocator::get_page_count(int pid) const {
+    std::lock_guard<std::mutex> lock(mem_mutex);
+    auto it = pageTables.find(pid);
+    if (it == pageTables.end()) return 0;
+    return it->second.size();
+}
+
+bool PagingAllocator::is_page_resident(int pid, size_t page_number) const {
+    std::lock_guard<std::mutex> lock(mem_mutex);
+    auto it = pageTables.find(pid);
+    if (it == pageTables.end() || page_number >= it->second.size()) {
+        return false;
+    }
+    return it->second[page_number].frame != -1;
+}
+
+bool PagingAllocator::ensure_page_resident(int pid, size_t page_number, bool for_write) {
+    std::lock_guard<std::mutex> lock(mem_mutex);
+    auto it = pageTables.find(pid);
+    if (it == pageTables.end() || page_number >= it->second.size()) {
+        return false;
+    }
+
+    PageTableEntry& entry = it->second[page_number];
+    if (entry.frame != -1) {
+        if (for_write) {
+            entry.is_dirty = true;
+        }
+        return true;
+    }
+
+    int frame = obtainFrame();
+    if (frame == -1) {
+        return false;
+    }
+
+    frameOwnerPid[frame] = pid;
+    frameOwnerPage[frame] = static_cast<int>(page_number);
+    frameFifo.push_back(frame);
+
+    entry.frame = frame;
+    entry.on_backing_store = false;
+    entry.is_dirty = for_write;
+    numPagedIn++;
+    return true;
+}
+
+bool PagingAllocator::mark_page_dirty(int pid, size_t page_number) {
+    std::lock_guard<std::mutex> lock(mem_mutex);
+    auto it = pageTables.find(pid);
+    if (it == pageTables.end() || page_number >= it->second.size()) {
+        return false;
+    }
+    it->second[page_number].is_dirty = true;
+    return true;
 }
 
 void* PagingAllocator::allocate(size_t size, int pid, const std::string& process_name) {
@@ -57,23 +124,6 @@ void* PagingAllocator::allocate(size_t size, int pid, const std::string& process
 
     processNames[pid] = process_name;
     pageTables[pid] = std::vector<PageTableEntry>(numPages);
-
-    for (size_t page = 0; page < numPages; ++page) {
-        int frame = obtainFrame();
-        if (frame == -1) {
-            pageTables.erase(pid); // roll back partial allocation
-            processNames.erase(pid);
-            return nullptr;
-        }
-
-        frameOwnerPid[frame] = pid;
-        frameOwnerPage[frame] = static_cast<int>(page);
-        frameFifo.push_back(frame);
-
-        pageTables[pid][page].frame = frame;
-        pageTables[pid][page].on_backing_store = false;
-        numPagedIn++; // every page placed into a frame counts as a page-in
-    }
 
     // Memory isn't one contiguous block under paging, so there's no single
     // address to return. We hand back an opaque handle (the pid) that

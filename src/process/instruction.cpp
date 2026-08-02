@@ -3,6 +3,7 @@
 #include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <utility>
 #include "os_process.h"
 
 // Helper function
@@ -66,10 +67,11 @@ bool SubtractInstruction::execute(Process& context, LogEntry& log) {
     // Operation
     uint16_t left = resolve_operand(context, lhs);
     uint16_t right = resolve_operand(context, rhs);
-    uint32_t result = left - right;
+    uint32_t result = 0;
 
-    if (result > UINT16_MAX)
-        result = UINT16_MAX;
+    if (left >= right) {
+        result = static_cast<uint32_t>(left - right);
+    }
 
     context.set_variable(destination,
                      static_cast<uint16_t>(result));
@@ -96,9 +98,21 @@ bool PrintInstruction::execute(Process& context, LogEntry& log) {
 
 bool DeclareInstruction::execute(Process& context, LogEntry& log) {
     std::stringstream ss;
-    context.set_variable(var, value);
+    context.declare_variable(var, value);
     ss << std::right << std::setw(10) << "DECLARE: ";
     ss << "Declared var " << this->var << " with value " << this->value;
+    log.message = ss.str();
+    return true;
+}
+
+bool PrintExpressionInstruction::execute(Process& context, LogEntry& log) {
+    std::stringstream ss;
+    ss << std::right << std::setw(10) << "PRINT: ";
+    ss << prefix;
+    uint16_t value = 0;
+    if (context.get_variable(variable_name, value)) {
+        ss << value;
+    }
     log.message = ss.str();
     return true;
 }
@@ -213,14 +227,29 @@ void SleepInstruction::reset() {
 bool ReadInstruction::execute(Process& context, LogEntry& log) {
     initialize_entry(context, log);
 
+    size_t page_size = context.get_page_size();
+    if (page_size > 0) {
+        size_t page = (address / page_size);
+        if (!context.is_page_resident(page)) {
+            if (!context.ensure_page_resident(page, false)) {
+                log.message = "PAGE FAULT: READ at page " + std::to_string(page);
+                return false;
+            }
+        }
+    }
+
     // Bounds check: address + 1 (need 2 bytes for uint16) must be within mem_size
-    if (address + sizeof(uint16_t) > context.mem_size) {
-        context.access_violation = true;
-        context.violation_timestamp = get_current_time();
-        std::ostringstream oss;
-        oss << "0x" << std::hex << std::uppercase << address;
-        context.violation_address = oss.str();
-        log.message = "ACCESS VIOLATION: READ at " + context.violation_address;
+    if (!context.is_address_valid(address) || !context.is_address_valid(address + sizeof(uint16_t) - 1)) {
+        context.terminate_with_violation("0x" + [&]() {
+            std::ostringstream oss;
+            oss << std::hex << std::uppercase << address;
+            return oss.str();
+        }(), get_current_time());
+        log.message = "ACCESS VIOLATION: READ at 0x" + [&]() {
+            std::ostringstream oss;
+            oss << std::hex << std::uppercase << address;
+            return oss.str();
+        }();
         return true;
     }
 
@@ -240,14 +269,29 @@ bool ReadInstruction::execute(Process& context, LogEntry& log) {
 bool WriteInstruction::execute(Process& context, LogEntry& log) {
     initialize_entry(context, log);
 
+    size_t page_size = context.get_page_size();
+    if (page_size > 0) {
+        size_t page = (address / page_size);
+        if (!context.is_page_resident(page)) {
+            if (!context.ensure_page_resident(page, true)) {
+                log.message = "PAGE FAULT: WRITE at page " + std::to_string(page);
+                return false;
+            }
+        }
+    }
+
     // Bounds check
-    if (address + sizeof(uint16_t) > context.mem_size) {
-        context.access_violation = true;
-        context.violation_timestamp = get_current_time();
-        std::ostringstream oss;
-        oss << "0x" << std::hex << std::uppercase << address;
-        context.violation_address = oss.str();
-        log.message = "ACCESS VIOLATION: WRITE at " + context.violation_address;
+    if (!context.is_address_valid(address) || !context.is_address_valid(address + sizeof(uint16_t) - 1)) {
+        context.terminate_with_violation("0x" + [&]() {
+            std::ostringstream oss;
+            oss << std::hex << std::uppercase << address;
+            return oss.str();
+        }(), get_current_time());
+        log.message = "ACCESS VIOLATION: WRITE at 0x" + [&]() {
+            std::ostringstream oss;
+            oss << std::hex << std::uppercase << address;
+            return oss.str();
+        }();
         return true;
     }
 

@@ -11,6 +11,7 @@
 struct PageTableEntry {
     int frame = -1;
     bool on_backing_store = false;
+    bool is_dirty = false;
 };
 
 // Paging memory allocator.
@@ -43,6 +44,11 @@ public:
 
     size_t get_num_paged_in() const override;
     size_t get_num_paged_out() const override;
+    size_t get_page_size() const override;
+    size_t get_page_count(int pid) const override;
+    bool is_page_resident(int pid, size_t page_number) const override;
+    bool ensure_page_resident(int pid, size_t page_number, bool for_write = false) override;
+    bool mark_page_dirty(int pid, size_t page_number) override;
 
 private:
     size_t maximumSize;

@@ -67,21 +67,27 @@ void validateConfig(Config& config) {
         config.delays_per_exec = default_config.delays_per_exec;
     }
 
-    if(config.max_overall_mem < 1 || config.max_overall_mem > MAX_CONFIG_VALUE) {
+    auto is_power_of_2 = [](uint64_t n) { return n > 0 && (n & (n - 1)) == 0; };
+
+    if(config.max_overall_mem < 64 || config.max_overall_mem > 65536 || !is_power_of_2(config.max_overall_mem)) {
         std::cerr
-            << "ERROR: max-overall-mem must be [1, 2^32]; using default instead...\n";
+            << "ERROR: max-overall-mem must be a power of 2 between 64 and 65536; using default instead...\n";
 
         config.max_overall_mem = default_config.max_overall_mem;
     }
 
-    if(config.mem_per_frame < 1 || config.mem_per_frame > MAX_CONFIG_VALUE) {
+    if(config.mem_per_frame < 64 || config.mem_per_frame > 65536 || !is_power_of_2(config.mem_per_frame)) {
         std::cerr
-            << "ERROR: mem-per-frame must be [1, 2^32]; using default instead...\n";
+            << "ERROR: mem-per-frame must be a power of 2 between 64 and 65536; using default instead...\n";
 
         config.mem_per_frame = default_config.mem_per_frame;
     }
 
-    auto is_power_of_2 = [](uint64_t n) { return n > 0 && (n & (n - 1)) == 0; };
+    if(config.mem_per_frame > config.max_overall_mem || (config.max_overall_mem % config.mem_per_frame) != 0) {
+        std::cerr << "ERROR: mem-per-frame must divide max-overall-mem; using default instead...\n";
+        config.mem_per_frame = default_config.mem_per_frame;
+    }
+
     if(config.min_mem_per_proc < 64 || config.min_mem_per_proc > 65536 || !is_power_of_2(config.min_mem_per_proc) || config.min_mem_per_proc > config.max_overall_mem) {
         std::cerr << "ERROR: min-mem-per-proc must be a power of 2 between 64 and 65536, and <= max_overall_mem; using default...\n";
         config.min_mem_per_proc = default_config.min_mem_per_proc;

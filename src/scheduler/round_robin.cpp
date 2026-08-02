@@ -18,10 +18,15 @@ RoundRobinScheduler::RoundRobinScheduler(CPUManager& cpu_m, ProcessManager& proc
 }
 
 void RoundRobinScheduler::add_process(Process* process) {
-    if (process != nullptr) {
-        process->state = ProcessState::READY;
-        ready_queue.push(process);
+    if (process == nullptr) {
+        return;
     }
+    if (process->mem_size == 0 || process->mem_size > memory_allocator.get_maximum_size()) {
+        process->terminate_with_violation("0x0", get_current_time());
+        return;
+    }
+    process->state = ProcessState::READY;
+    ready_queue.push(process);
 }
 
 void RoundRobinScheduler::tick() {
@@ -33,7 +38,7 @@ void RoundRobinScheduler::tick() {
         // 1. Check if the core's process just finished -> release its memory
         if (!core.is_idle()) {
             Process* p = core.get_process();
-            if (p->state == ProcessState::FINISHED) {
+            if (p->state == ProcessState::FINISHED || p->state == ProcessState::TERMINATED) {
                 auto mem_it = process_memory_ptr.find(p->id);
                 if (mem_it != process_memory_ptr.end()) {
                     memory_allocator.deallocate(mem_it->second);

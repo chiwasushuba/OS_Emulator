@@ -40,7 +40,7 @@ std::vector<int> ProcessManager::get_active_pids() const {
     std::vector<int> pids;
     for (auto it = processes.begin(); it != processes.end(); ++it) {
         Process* process = it->second.get();
-        if (process->core_id != -1 && process->state != ProcessState::FINISHED) {
+        if (process->core_id != -1 && process->state != ProcessState::FINISHED && process->state != ProcessState::TERMINATED) {
             pids.push_back(it->first);
         }
     }
@@ -52,7 +52,7 @@ std::vector<int> ProcessManager::get_finished_pids() const {
     std::vector<int> pids;
     for (auto it = processes.begin(); it != processes.end(); ++it) {
         Process* process = it->second.get();
-        if (process->state == ProcessState::FINISHED) {
+        if (process->state == ProcessState::FINISHED || process->state == ProcessState::TERMINATED) {
             pids.push_back(it->first);
         }
     }
@@ -75,7 +75,7 @@ std::vector<ProcessSnapshot> ProcessManager::get_active_processes() const {
     for (auto it = processes.begin(); it != processes.end(); ++it) {
         Process* process = it->second.get();
         // Evaluate the criteria strictly inside the lock
-        if (process->core_id != -1 && process->state != ProcessState::FINISHED) {
+        if (process->core_id != -1 && process->state != ProcessState::FINISHED && process->state != ProcessState::TERMINATED) {
             active_procs.push_back(ProcessSnapshot{
                 process->id,
                 process->process_name,

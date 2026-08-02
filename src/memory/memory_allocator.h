@@ -40,6 +40,11 @@ public:
     virtual size_t get_free_size() const { return 0; }
     virtual size_t get_num_paged_in() const { return 0; }
     virtual size_t get_num_paged_out() const { return 0; }
+    virtual size_t get_page_size() const { return 0; }
+    virtual size_t get_page_count(int pid) const { return 0; }
+    virtual bool is_page_resident(int pid, size_t page_number) const { return true; }
+    virtual bool ensure_page_resident(int pid, size_t page_number, bool for_write = false) { return true; }
+    virtual bool mark_page_dirty(int pid, size_t page_number) { return true; }
 };
 
 // First-fit flat memory allocator: scans memory from address 0 upward and

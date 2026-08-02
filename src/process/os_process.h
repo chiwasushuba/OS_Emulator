@@ -4,6 +4,7 @@
 #include <vector>
 #include <cstdint>
 #include <memory>
+#include <functional>
 #include "../compat/mutex_compat.h"
 
 class Process;
@@ -23,7 +24,8 @@ enum class ProcessState {
     READY,
     RUNNING,
     WAITING,
-    FINISHED
+    FINISHED,
+    TERMINATED
 };
 
 enum class SleepState {
@@ -120,6 +122,9 @@ class Process {
         std::string process_name;
         
         size_t mem_size = 0;
+        size_t page_size = 0;
+        std::unordered_map<int, bool> resident_pages;
+        std::function<bool(size_t, bool)> page_fault_handler;
 
         // Virtual memory for this process
         std::vector<uint16_t> memory_space;
@@ -134,22 +139,57 @@ class Process {
 
         // Initialize the memory space based on mem_size
         void init_memory() {
-            if (mem_size > 0)
-                memory_space.assign(mem_size / sizeof(uint16_t), 0);
+            if (mem_size > 0) {
+                size_t word_count = (mem_size + sizeof(uint16_t) - 1) / sizeof(uint16_t);
+                memory_space.assign(word_count, 0);
+            } else {
+                memory_space.clear();
+            }
         }
 
         bool execute_next_instruction(LogEntry& log);    // should, LogEntry& log call logging
+        void set_page_size(size_t page_size_bytes) { page_size = page_size_bytes; }
+        size_t get_page_size() const { return page_size; }
+        void mark_page_resident(size_t page_number, bool resident) { resident_pages[static_cast<int>(page_number)] = resident; }
+        bool is_page_resident(size_t page_number) const {
+            auto it = resident_pages.find(static_cast<int>(page_number));
+            return it != resident_pages.end() && it->second;
+        }
+        void set_page_fault_handler(std::function<bool(size_t, bool)> handler) {
+            page_fault_handler = std::move(handler);
+        }
+        bool ensure_page_resident(size_t page_number, bool for_write = false) {
+            if (page_fault_handler) {
+                bool ok = page_fault_handler(page_number, for_write);
+                mark_page_resident(page_number, ok);
+                return ok;
+            }
+            return false;
+        }
         
         void add_instruction(std::unique_ptr<Instruction> new_instruction);
 
-        void set_variable(const std::string& name, uint16_t value) {
+        bool is_address_valid(uint32_t address) const {
+            return address < mem_size;
+        }
+
+        bool declare_variable(const std::string& name, uint16_t value) {
+            if (symbol_table.size() >= MAX_VARIABLES) {
+                return false;
+            }
+            symbol_table[name] = value;
+            return true;
+        }
+
+        bool set_variable(const std::string& name, uint16_t value) {
             auto it = symbol_table.find(name);
             if (it != symbol_table.end()) {
-                it->second = value;  // update existing — always allowed
-                return;
+                it->second = value;
+                return true;
             }
-            if (symbol_table.size() >= MAX_VARIABLES) return;  // silently ignore
+            if (symbol_table.size() >= MAX_VARIABLES) return false;
             symbol_table[name] = value;
+            return true;
         }
 
         bool get_variable(const std::string& name, uint16_t& value) const {
@@ -170,7 +210,14 @@ class Process {
         }
 
         bool is_finished() const {
-            return current_instruction >= (instruction_list.size());
+            return current_instruction >= (instruction_list.size()) || state == ProcessState::TERMINATED;
+        }
+
+        void terminate_with_violation(const std::string& address, const std::string& timestamp) {
+            access_violation = true;
+            violation_address = address;
+            violation_timestamp = timestamp;
+            state = ProcessState::TERMINATED;
         }
 };
 
@@ -222,6 +269,17 @@ public:
         : msg(message), x(var) {}
 
     bool execute(Process& context, LogEntry& log) override;  
+};
+
+class PrintExpressionInstruction : public Instruction {
+private:
+    std::string prefix;
+    std::string variable_name;
+public:
+    PrintExpressionInstruction(std::string message, std::string variable)
+        : prefix(std::move(message)), variable_name(std::move(variable)) {}
+
+    bool execute(Process& context, LogEntry& log) override;
 };
 
 // SLEEP(X)

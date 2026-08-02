@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 #include "config.h"
 #include "kernel.h"
 #include "core.h"
@@ -214,6 +215,10 @@ void Kernel::execute_screen_subsystem(const CommandPacket& packet) {
                 if (packet.mem_size > 0) {
                     created_process->mem_size = packet.mem_size;
                 }
+                created_process->set_page_size(memory_allocator ? memory_allocator->get_page_size() : 0);
+                created_process->set_page_fault_handler([this, created_process](size_t page_number, bool for_write) {
+                    return this->memory_allocator ? this->memory_allocator->ensure_page_resident(created_process->id, page_number, for_write) : false;
+                });
                 created_process->init_memory();
                 viewer.view_process(created_process->process_name);
             }
@@ -238,6 +243,10 @@ void Kernel::execute_screen_subsystem(const CommandPacket& packet) {
                 }
                 proc->process_name = payload;
                 proc->mem_size = packet.mem_size;
+                proc->set_page_size(memory_allocator ? memory_allocator->get_page_size() : 0);
+                proc->set_page_fault_handler([this, pid](size_t page_number, bool for_write) {
+                    return this->memory_allocator ? this->memory_allocator->ensure_page_resident(pid, page_number, for_write) : false;
+                });
                 proc->init_memory();
                 proc->state = ProcessState::READY;
                 proc->current_instruction = 0;
@@ -304,11 +313,16 @@ void Kernel::show_process_smi() {
     size_t total = memory_allocator ? memory_allocator->get_maximum_size() : 0;
     int mem_util = (total > 0) ? static_cast<int>(used * 100 / total) : 0;
 
+    auto to_mib = [](size_t bytes) {
+        return static_cast<double>(bytes) / (1024.0 * 1024.0);
+    };
+
     std::cout << "-----------------------------------------------\n";
     std::cout << "| PROCESS-SMI V01.00 Driver Version: 01.00    |\n";
     std::cout << "-----------------------------------------------\n";
     std::cout << "CPU-Util: " << cpu_util << "%\n";
-    std::cout << "Memory Usage: " << used << "MiB / " << total << "MiB\n";
+    std::cout << "Memory Usage: " << std::fixed << std::setprecision(2) << to_mib(used)
+              << "MiB / " << to_mib(total) << "MiB\n";
     std::cout << "Memory Util: " << mem_util << "%\n\n";
 
     std::cout << "===============================================\n";
@@ -316,10 +330,15 @@ void Kernel::show_process_smi() {
     std::cout << "-----------------------------------------------\n";
 
     auto active_pids = process_manager.get_active_pids();
-    for (int pid : active_pids) {
-        Process* p = process_manager.get_process(pid);
-        if (p) {
-            std::cout << p->process_name << " " << p->mem_size << "MiB\n";
+    if (active_pids.empty()) {
+        std::cout << "(none)\n";
+    } else {
+        for (int pid : active_pids) {
+            Process* p = process_manager.get_process(pid);
+            if (p) {
+                std::cout << p->process_name << "    " << std::fixed << std::setprecision(2)
+                          << to_mib(p->mem_size) << "MiB\n";
+            }
         }
     }
 
@@ -331,15 +350,19 @@ void Kernel::show_vmstat() {
     size_t used = memory_allocator ? memory_allocator->get_allocated_size() : 0;
     size_t free_mem = total - used;
 
+    auto to_kib = [](size_t bytes) {
+        return bytes / 1024;
+    };
+
     // Active = memory used by RUNNING processes
     // Inactive = memory used by non-RUNNING (READY/WAITING) processes
     size_t active = 0, inactive = 0;
-    for (int pid : process_manager.get_active_pids()) {
+    for (int pid : process_manager.get_all_pids()) {
         Process* p = process_manager.get_process(pid);
         if (!p) continue;
         if (p->state == ProcessState::RUNNING) {
             active += p->mem_size;
-        } else {
+        } else if (p->state != ProcessState::FINISHED && p->state != ProcessState::TERMINATED) {
             inactive += p->mem_size;
         }
     }
@@ -361,11 +384,11 @@ void Kernel::show_vmstat() {
         }
     }
 
-    std::cout << total      << " K total memory\n";
-    std::cout << used       << " K used memory\n";
-    std::cout << active     << " K active memory\n";
-    std::cout << inactive   << " K inactive memory\n";
-    std::cout << free_mem   << " K free memory\n";
+    std::cout << to_kib(total)      << " K total memory\n";
+    std::cout << to_kib(used)       << " K used memory\n";
+    std::cout << to_kib(active)     << " K active memory\n";
+    std::cout << to_kib(inactive)   << " K inactive memory\n";
+    std::cout << to_kib(free_mem)   << " K free memory\n";
     std::cout << idle_ticks  << " idle cpu ticks\n";
     std::cout << active_ticks << " active cpu ticks\n";
     std::cout << total_ticks << " total cpu ticks\n";
