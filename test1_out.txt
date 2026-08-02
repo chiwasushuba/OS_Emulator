@@ -1,0 +1,38 @@
+
+ ______   ______   ______   ______   ______   ______   __  __ 
+/_____/\ /_____/\ /_____/\ /_____/\ /_____/\ /_____/\ /_/\/_/\
+\:::__\/ \::::_\/_\:::_ \ \\:::_ \ \\::::_\/_\::::_\/_\ \ \ \ \
+ \:\ \  __\:\/___/\\:\ \ \ \\:(_) \ \\:\/___/\\:\/___/\\:\_\ \ \
+  \:\ \/_/\\_::._\:\\:\ \ \ \\: ___\/ \::___\/_\_::._\:\\::::_\/
+   \:\_\ \ \ /____\:\\:\_\ \ \\ \ \    \:\____/\ /____\:\ \::\ \
+    \_____\/ \_____\/ \_____\/ \_\/     \_____\/ \_____\/  \__\/
+
+-------------------------------------------------------------
+Welcome to CSOPESY_Emulator!!
+Developers:
+Bernandino, Adrian Rafael
+Corpuz, Thara Mae
+Esleta, Joshua James
+Santos, Francine Hannah
+
+Last updated: 06-27-2026
+-------------------------------------------------------------
+
+root:\> Initializing system subsystems...
+
+---config loaded with the following values---
+num_cpu:		2
+scheduler:		fcfs
+quantum_cycles:		1
+batch_process_freq:	1
+min_ins:		4000
+max_ins:		4000
+delays_per_exec:	0
+max_overall_mem:	512
+mem_per_frame:		256
+min_mem_per_proc:	512
+max_mem_per_proc:	512
+
+
+root:\> 
+root:\process1:1\> 

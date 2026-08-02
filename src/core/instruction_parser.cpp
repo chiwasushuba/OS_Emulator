@@ -63,7 +63,7 @@ std::vector<std::unique_ptr<Instruction>> parse_instructions(const std::string& 
                 return {};
             }
             uint16_t val = 0;
-            try { val = static_cast<uint16_t>(std::stoul(val_s)); } catch (...) {}
+            try { val = static_cast<uint16_t>(std::stoul(val_s)); } catch (...) { std::cerr << "Error: Malformed instruction '" << inst_str << "'\n"; }
             result.push_back(std::make_unique<DeclareInstruction>(var, val));
         }
         else if (opcode == "ADD") {
@@ -120,14 +120,14 @@ std::vector<std::unique_ptr<Instruction>> parse_instructions(const std::string& 
                 return {};
             }
             uint32_t addr = 0;
-            try { addr = std::stoul(addr_s, nullptr, 16); } catch (...) {}
+            try { addr = std::stoul(addr_s, nullptr, 16); } catch (...) { std::cerr << "Error: Malformed instruction '" << inst_str << "'\n"; }
             result.push_back(std::make_unique<ReadInstruction>(var, addr));
         }
         else if (opcode == "WRITE") {
             std::string addr_s, val_s;
             iss >> addr_s >> val_s;
             uint32_t addr = 0;
-            try { addr = std::stoul(addr_s, nullptr, 16); } catch (...) {}
+            try { addr = std::stoul(addr_s, nullptr, 16); } catch (...) { std::cerr << "Error: Malformed instruction '" << inst_str << "'\n"; }
             result.push_back(std::make_unique<WriteInstruction>(addr, parse_operand(val_s)));
         }
         else if (opcode == "SLEEP") {

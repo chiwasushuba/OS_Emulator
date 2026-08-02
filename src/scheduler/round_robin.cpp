@@ -12,7 +12,7 @@ static void debug_log(const std::string& line) {
 }
 
 RoundRobinScheduler::RoundRobinScheduler(CPUManager& cpu_m, ProcessManager& proc_m, IMemoryAllocator& mem_alloc, uint64_t quantum)
-    : Scheduler(cpu_m, proc_m, mem_alloc), quantum(quantum) {
+    : Scheduler(cpu_m, proc_m, mem_alloc), quantum(quantum > 0 ? quantum : 1) {
     // Initialize the core cycles tracker to match the number of cores
     core_cycles.resize(cpu_manager.get_cores().size(), 0);
 }

@@ -161,41 +161,45 @@ void loadConfig(const std::string& filename, Config& config) {
         // Extract whitespace separatated tokens
         ss >> key >> value;
 
-        if (key == "num-cpu") {
-            config.num_cpu = std::stoi(value);
-        }
-        else if (key == "scheduler") {
-            config.scheduler = value;
-        }
-        else if (key == "quantum-cycles") {
-            config.quantum_cycles = std::stoull(value);
-        }
-        else if (key == "batch-process-freq") {
-            config.batch_process_freq = std::stoull(value);
-        }
-        else if (key == "min-ins") {
-            config.min_ins = std::stoull(value);
-        }
-        else if (key == "max-ins") {
-            config.max_ins = std::stoull(value);
-        }
-        else if (key == "delays-per-exec") {
-            config.delays_per_exec = std::stoull(value);
-        }
-        else if (key == "max-overall-mem") {
-            config.max_overall_mem = std::stoull(value);
-        }
-        else if (key == "mem-per-frame") {
-            config.mem_per_frame = std::stoull(value);
-        }
-        else if (key == "min-mem-per-proc") {
-            config.min_mem_per_proc = std::stoull(value);
-        }
-        else if (key == "max-mem-per-proc") {
-            config.max_mem_per_proc = std::stoull(value);
-        }
-        else {
-            std::cerr << "Unknown parameter: " << key << '\n';
+        try {
+            if (key == "num-cpu") {
+                config.num_cpu = std::stoi(value);
+            }
+            else if (key == "scheduler") {
+                config.scheduler = value;
+            }
+            else if (key == "quantum-cycles") {
+                config.quantum_cycles = std::stoull(value);
+            }
+            else if (key == "batch-process-freq") {
+                config.batch_process_freq = std::stoull(value);
+            }
+            else if (key == "min-ins") {
+                config.min_ins = std::stoull(value);
+            }
+            else if (key == "max-ins") {
+                config.max_ins = std::stoull(value);
+            }
+            else if (key == "delays-per-exec") {
+                config.delays_per_exec = std::stoull(value);
+            }
+            else if (key == "max-overall-mem") {
+                config.max_overall_mem = std::stoull(value);
+            }
+            else if (key == "mem-per-frame") {
+                config.mem_per_frame = std::stoull(value);
+            }
+            else if (key == "min-mem-per-proc") {
+                config.min_mem_per_proc = std::stoull(value);
+            }
+            else if (key == "max-mem-per-proc") {
+                config.max_mem_per_proc = std::stoull(value);
+            }
+            else {
+                std::cerr << "Unknown parameter: " << key << '\n';
+            }
+        } catch (...) {
+            std::cerr << "ERROR: Invalid numeric value for " << key << ". Using default...\n";
         }
     }
 

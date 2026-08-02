@@ -306,3 +306,86 @@ Used/active/inactive memory all show 0. Pages paged in/out also 0 — consistent
 
 > [!IMPORTANT]
 > **Only 2 real bugs remain.** Everything else from the original 20-item list has been implemented and is working.
+
+---
+
+## 21. How to Test Each Feature
+
+Follow these steps from the `OS_Emulator` directory to manually test the implemented features.
+
+### Step 1: Build the Emulator
+```cmd
+build.bat
+```
+Then start the emulator:
+```cmd
+cd build\src
+os_emulator.exe
+```
+
+### Step 2: Initialize
+At the `root:\>` prompt, initialize the system:
+```cmd
+initialize
+```
+This tests **§1 Configuration** (loads config values like `mem-per-frame`) and **§11 Kernel Memory Manager Integration**.
+
+### Step 3: Test Standard Process Creation & Memory Requirement
+```cmd
+screen -s p1
+```
+Inside the `p1` sub-screen, type `exit` to return to `root:\>`.
+Create a couple more processes with custom memory requirements (tests **§6 Memory Size Support**):
+```cmd
+screen -s p2 128
+exit
+screen -s p3 256
+exit
+```
+This tests **§2 Memory Manager Core Logic** (allocation) and **§5 Process Memory Space**.
+
+### Step 4: Test Custom Instructions & Simulating Memory Access
+```cmd
+screen -c custom1 128 "DECLARE x 42; WRITE 0x0 x; READ y 0x0; PRINT hello; SLEEP"
+```
+Inside the `custom1` sub-screen, type `exit`.
+This tests **§7 Custom Instructions**, **§4 New Instructions**, and **§12 CPU Core Page Fault Handling** (since memory-accessing instructions trigger residency checks).
+
+### Step 5: Test Scheduler and Visualization Commands
+Start the scheduler so the processes begin executing:
+```cmd
+scheduler-start
+```
+While processes are running, run these commands to test **§9 `process-smi`** and **§10 `vmstat`**:
+```cmd
+process-smi
+vmstat
+```
+*(Note: As documented in the bugs section, memory usage might show 0 due to demand paging, but the commands should execute and format properly).*
+
+View the active processes (tests scheduler queue and core assignment):
+```cmd
+screen -ls
+```
+Generate the CPU and Memory report:
+```cmd
+report-util
+```
+*(Check `build/csopesy_report.txt` or `csopesy_report.txt` in the root folder after exiting).*
+
+### Step 6: Test Access Violation and Re-attaching
+If a custom process tries to access out-of-bounds memory (e.g. `screen -c bad_proc 64 "WRITE 0xFFF 0"`), it will terminate with an access violation.
+To test **§8 Access Violation Reporting**:
+```cmd
+screen -r custom1
+```
+If it's running, it shows the live screen. If it finished, it shows "Finished". If it had a memory violation, it will display the violation timestamp and address.
+Type `exit` to return to the root prompt.
+
+### Step 7: Cleanup
+Stop the scheduler and exit the emulator:
+```cmd
+scheduler-stop
+exit
+```
+Check the generated memory stamp files (`memory_stamp_*.txt`) and `csopesy-backing-store.txt` in the root or `build` directory to verify **§3 Backing Store File I/O** and memory snapshotting.

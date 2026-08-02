@@ -1,0 +1,97 @@
+
+ ______   ______   ______   ______   ______   ______   __  __ 
+/_____/\ /_____/\ /_____/\ /_____/\ /_____/\ /_____/\ /_/\/_/\
+\:::__\/ \::::_\/_\:::_ \ \\:::_ \ \\::::_\/_\::::_\/_\ \ \ \ \
+ \:\ \  __\:\/___/\\:\ \ \ \\:(_) \ \\:\/___/\\:\/___/\\:\_\ \ \
+  \:\ \/_/\\_::._\:\\:\ \ \ \\: ___\/ \::___\/_\_::._\:\\::::_\/
+   \:\_\ \ \ /____\:\\:\_\ \ \\ \ \    \:\____/\ /____\:\ \::\ \
+    \_____\/ \_____\/ \_____\/ \_\/     \_____\/ \_____\/  \__\/
+
+-------------------------------------------------------------
+Welcome to CSOPESY_Emulator!!
+Developers:
+Bernandino, Adrian Rafael
+Corpuz, Thara Mae
+Esleta, Joshua James
+Santos, Francine Hannah
+
+Last updated: 06-27-2026
+-------------------------------------------------------------
+
+root:\> Initializing system subsystems...
+
+---config loaded with the following values---
+num_cpu:		2
+scheduler:		rr
+quantum_cycles:		4
+batch_process_freq:	1
+min_ins:		100
+max_ins:		100
+delays_per_exec:	0
+max_overall_mem:	16384
+mem_per_frame:		16
+min_mem_per_proc:	4096
+max_mem_per_proc:	4096
+
+
+root:\> 
+root:\proc1:1\> 
+DEBUG: Executing instruction 0 for process proc1
+
+DEBUG: Executing instruction 1 for process proc1
+
+DEBUG: Executing instruction 1 for process proc1
+
+DEBUG: Executing instruction 1 for process proc1
+
+DEBUG: Executing instruction 1 for process proc1
+
+DEBUG: Executing instruction 1 for process proc1
+
+DEBUG: Executing instruction 1 for process proc1
+
+DEBUG: Executing instruction 2 for process proc1
+
+DEBUG: Executing instruction 3 for process proc1
+
+DEBUG: Executing instruction 4 for process proc1
+
+DEBUG: Executing instruction 5 for process proc1
+
+DEBUG: Executing instruction 6 for process proc1
+
+DEBUG: Executing instruction 7 for process proc1
+
+DEBUG: Executing instruction 8 for process proc1
+
+DEBUG: Executing instruction 9 for process proc1
+
+DEBUG: Executing instruction 9 for process proc1
+
+DEBUG: Executing instruction 9 for process proc1
+
+DEBUG: Executing instruction 10 for process proc1
+
+DEBUG: Executing instruction 10 for process proc1
+
+DEBUG: Executing instruction 10 for process proc1
+
+DEBUG: Executing instruction 10 for process proc1
+
+DEBUG: Executing instruction 11 for process proc1
+
+DEBUG: Executing instruction 12 for process proc1
+
+DEBUG: Executing instruction 12 for process proc1
+
+DEBUG: Executing instruction 12 for process proc1
+
+DEBUG: Executing instruction 12 for process proc1
+
+DEBUG: Executing instruction 12 for process proc1
+
+root:\> 
+STDERR:
+ERROR: scheduler must be "fcfs" or "rr"; using default instead...
+ERROR: mem-per-frame must be a power of 2 between 64 and 65536; using default instead...
+
