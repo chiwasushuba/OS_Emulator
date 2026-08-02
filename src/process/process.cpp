@@ -16,7 +16,7 @@ bool Process::execute_next_instruction(LogEntry& log) {
     Instruction* inst = instruction_list[current_instruction].get();
 
     // Execute current instruction
-    std::cout << "\nDEBUG: Executing instruction " << current_instruction << " for process " << process_name << "\n";
+    // std::cout << "\nDEBUG: Executing instruction " << current_instruction << " for process " << process_name << "\n";
     bool should_log = inst->execute(*this, log);
 
     // Check if instruction caused an access violation
