@@ -14,7 +14,7 @@ struct Config {
 
     // Memory manager configuration
     uint64_t max_overall_mem = 16384;  // total bytes of main memory
-    uint64_t mem_per_frame = 16;       // bytes per frame (reserved for paging allocators)
+    uint64_t mem_per_frame = 64;       // bytes per frame (reserved for paging allocators)
     uint64_t min_mem_per_proc = 4096;
     uint64_t max_mem_per_proc = 4096;
 };

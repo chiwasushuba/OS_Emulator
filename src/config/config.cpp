@@ -86,16 +86,24 @@ void validateConfig(Config& config) {
     if(config.mem_per_frame > config.max_overall_mem || (config.max_overall_mem % config.mem_per_frame) != 0) {
         std::cerr << "ERROR: mem-per-frame must divide max-overall-mem; using default instead...\n";
         config.mem_per_frame = default_config.mem_per_frame;
+		config.max_overall_mem = default_config.max_overall_mem;
     }
 
     if(config.min_mem_per_proc < 64 || config.min_mem_per_proc > 65536 || !is_power_of_2(config.min_mem_per_proc) || config.min_mem_per_proc > config.max_overall_mem) {
         std::cerr << "ERROR: min-mem-per-proc must be a power of 2 between 64 and 65536, and <= max_overall_mem; using default...\n";
         config.min_mem_per_proc = default_config.min_mem_per_proc;
+		if (config.min_mem_per_proc > config.max_overall_mem) {
+			config.max_overall_mem = default_config.max_overall_mem;
+			config.max_mem_per_proc = default_config.max_mem_per_proc;
+		}
     }
 
     if(config.max_mem_per_proc < 64 || config.max_mem_per_proc > 65536 || !is_power_of_2(config.max_mem_per_proc) || config.max_mem_per_proc > config.max_overall_mem) {
         std::cerr << "ERROR: max-mem-per-proc must be a power of 2 between 64 and 65536, and <= max_overall_mem; using default...\n";
         config.max_mem_per_proc = default_config.max_mem_per_proc;
+		if (config.max_mem_per_proc > config.max_overall_mem) {
+			config.max_overall_mem = default_config.max_overall_mem;
+		}
     }
 
     if(config.min_mem_per_proc > config.max_mem_per_proc) {
