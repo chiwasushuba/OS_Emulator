@@ -34,7 +34,7 @@ min_mem_per_proc:	4096
 max_mem_per_proc:	4096
 
 
-root:\> Process proc1 shut down due to memory access violation error that occurred at 08/02/2026 06:55:03PM. 0x0 invalid.
+root:\> Process proc1 shut down due to memory access violation error that occurred at 08/02/2026 07:25:29PM. 0x0 invalid.
 
 root:\> 
 STDERR:

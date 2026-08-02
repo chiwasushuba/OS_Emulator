@@ -239,7 +239,7 @@ bool ReadInstruction::execute(Process& context, LogEntry& log) {
     }
 
     // Bounds check: address + 1 (need 2 bytes for uint16) must be within mem_size
-    if (!context.is_address_valid(address) || !context.is_address_valid(address + sizeof(uint16_t) - 1)) {
+    if (address % sizeof(uint16_t) != 0 || !context.is_address_valid(address) || !context.is_address_valid(address + sizeof(uint16_t) - 1)) {
         context.terminate_with_violation("0x" + [&]() {
             std::ostringstream oss;
             oss << std::hex << std::uppercase << address;
@@ -281,7 +281,7 @@ bool WriteInstruction::execute(Process& context, LogEntry& log) {
     }
 
     // Bounds check
-    if (!context.is_address_valid(address) || !context.is_address_valid(address + sizeof(uint16_t) - 1)) {
+    if (address % sizeof(uint16_t) != 0 || !context.is_address_valid(address) || !context.is_address_valid(address + sizeof(uint16_t) - 1)) {
         context.terminate_with_violation("0x" + [&]() {
             std::ostringstream oss;
             oss << std::hex << std::uppercase << address;
