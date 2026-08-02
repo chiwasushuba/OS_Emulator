@@ -115,7 +115,7 @@ Operand random_operand(std::mt19937& rng)
 
 // helper function to create a random instruction, used in generate_one_process
 std::unique_ptr<Instruction> create_random_instruction(std::mt19937& rng, const std::string& process_name, int current_depth) {
-    int max_type = (current_depth >= 3) ? 5 : 6; 
+    int max_type = (current_depth >= 1) ? 5 : 6; 
     std::uniform_int_distribution<int> type_dist(1, max_type);
     int type = type_dist(rng);
 
