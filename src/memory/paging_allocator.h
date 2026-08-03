@@ -56,6 +56,11 @@ private:
 	size_t maximumSize;
 	size_t frameSize;
 	size_t numFrames;
+	
+	const std::string backingStoreFile = "../../csopesy-backing-store.txt";
+	void writeToBackingStore(int pid, int page);
+    bool loadFromBackingStore(int pid, int page);
+    void removeFromBackingStore(int pid, int page);
 
 	// Frame table: for each physical frame, which pid/page currently
 	// occupies it (-1 / -1 if free). This is the physical side of the

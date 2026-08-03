@@ -10,6 +10,10 @@ PagingAllocator::PagingAllocator(size_t maximumSize, size_t frameSize)
     numFrames = maximumSize / frameSize;
     frameOwnerPid.assign(numFrames, -1);
     frameOwnerPage.assign(numFrames, -1);
+
+	// Create backing store file if it does not exist
+    std::ofstream backing(backingStoreFile, std::ios::app);
+    backing.close();
 }
 
 int PagingAllocator::obtainFrame() {
@@ -28,6 +32,14 @@ int PagingAllocator::obtainFrame() {
     int victimPid = frameOwnerPid[victimFrame];
     int victimPage = frameOwnerPage[victimFrame];
 
+	std::cout << "[PAGE OUT] PID: "
+          << victimPid
+          << " Page: "
+          << victimPage
+          << " Frame: "
+          << victimFrame
+          << std::endl;
+
     if (victimPid != -1) {
         auto victimTableIt = pageTables.find(victimPid);
         if (victimTableIt != pageTables.end() && victimPage >= 0 && static_cast<size_t>(victimPage) < victimTableIt->second.size()) {
@@ -38,11 +50,7 @@ int PagingAllocator::obtainFrame() {
     }
     numPagedOut++;
 
-    std::ofstream backing("../../csopesy-backing-store.txt", std::ios::app);
-    if (backing.is_open()) {
-        backing << "OUT pid=" << victimPid << " page=" << victimPage
-                << " (" << processNames[victimPid] << ")\n";
-    }
+    writeToBackingStore(victimPid, victimPage);
 
     frameOwnerPid[victimFrame] = -1;
     frameOwnerPage[victimFrame] = -1;
@@ -84,6 +92,12 @@ bool PagingAllocator::ensure_page_resident(int pid, size_t page_number, bool for
         }
         return true;
     }
+	std::cout << "[PAGE FAULT] PID: "
+          << pid
+          << " Page: "
+          << page_number
+          << " needs a frame"
+          << std::endl;
 
     int frame = obtainFrame();
     if (frame == -1) {
@@ -94,10 +108,21 @@ bool PagingAllocator::ensure_page_resident(int pid, size_t page_number, bool for
     frameOwnerPage[frame] = static_cast<int>(page_number);
     frameFifo.push_back(frame);
 
+	if (entry.on_backing_store) {
+		loadFromBackingStore(pid, page_number);
+	}
     entry.frame = frame;
     entry.on_backing_store = false;
     entry.is_dirty = for_write;
     numPagedIn++;
+
+	std::cout << "[PAGE IN] PID: "
+          << pid
+          << " Page: "
+          << page_number
+          << " -> Frame: "
+          << frame
+          << std::endl;
     return true;
 }
 
@@ -151,7 +176,10 @@ void PagingAllocator::deallocate(void* ptr) {
         // Pages that were out on the backing store simply vanish - the
         // process is gone, there's nothing left to page back in.
     }
-
+	for(size_t page = 0; page < it->second.size(); page++)
+	{
+		removeFromBackingStore(pid, page);
+	}
     pageTables.erase(it);
     processNames.erase(pid);
 }
@@ -225,4 +253,106 @@ void PagingAllocator::generate_memory_stamp(uint64_t quantum_cycle, const std::s
     } else {
         std::cerr << "Failed to write memory stamp file: " << filename << "\n";
     }
+}
+
+void PagingAllocator::writeToBackingStore(int pid, int page)
+{
+	std::cout << "[BACKING STORE WRITE] "
+          << "PID: "
+          << pid
+          << " Page: "
+          << page
+          << std::endl;
+    std::ofstream backing(backingStoreFile, std::ios::app);
+
+    if (!backing.is_open())
+        return;
+
+    backing << "PAGE_OUT "
+            << "PID=" << pid
+            << " PAGE=" << page;
+
+    auto name = processNames.find(pid);
+
+    if (name != processNames.end())
+        backing << " PROCESS=" << name->second;
+
+    backing << "\n";
+}
+
+bool PagingAllocator::loadFromBackingStore(int pid, int page)
+{
+    std::ifstream backing(backingStoreFile);
+
+    if (!backing.is_open())
+        return false;
+
+    std::string line;
+
+    while (std::getline(backing, line))
+    {
+        std::stringstream ss(line);
+
+        std::string type;
+        int storedPid;
+        int storedPage;
+
+        ss >> type;
+
+        if(type != "PAGE_OUT")
+            continue;
+
+        ss.ignore(4); // PID=
+        ss >> storedPid;
+
+        ss.ignore(6); // PAGE=
+        ss >> storedPage;
+
+
+        if(storedPid == pid && storedPage == page)
+        {
+			std::cout << "[BACKING STORE READ] "
+				<< "PID: "
+				<< pid
+				<< " Page: "
+				<< page
+				<< std::endl;
+            removeFromBackingStore(pid,page);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void PagingAllocator::removeFromBackingStore(int pid, int page)
+{
+    std::ifstream input(backingStoreFile);
+
+    if(!input.is_open())
+        return;
+
+
+    std::vector<std::string> lines;
+    std::string line;
+
+
+    while(std::getline(input,line))
+    {
+        if(line.find(
+            "PID=" + std::to_string(pid) +
+            " PAGE=" + std::to_string(page)
+        ) == std::string::npos)
+        {
+            lines.push_back(line);
+        }
+    }
+
+    input.close();
+
+
+    std::ofstream output(backingStoreFile);
+
+    for(auto& l : lines)
+        output << l << "\n";
 }

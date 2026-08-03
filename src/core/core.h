@@ -76,11 +76,6 @@ public:
     void generate_report(const std::string& filename = "csopes_report.txt");
 };
 
-Process* test_deep_for_loops(ProcessManager& pm, const std::string& name);
-Process* test_for_loop(ProcessManager& pm, const std::string& name);
-Process* test_nested_for_loops(ProcessManager& pm, const std::string& name);
-Process* create_dummy_test_process(ProcessManager& pm, const std::string& name);
-
 // helper functions
 void format_active_entry(std::stringstream& ss, Process* process);  // depracated
 

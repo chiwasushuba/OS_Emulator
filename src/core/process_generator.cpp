@@ -11,61 +11,6 @@
 #include "core.h"
 #include "scheduler.h"
 
-Process* test_deep_for_loops(ProcessManager& pm, const std::string& name) {
-    int pid = pm.create_process(name);
-    Process* proc = pm.get_process(pid);
-    proc->state = ProcessState::READY;
-    proc->current_instruction = 0;
-
-    // Deepest level
-    std::vector<std::unique_ptr<Instruction>> level4;
-    level4.push_back(
-        std::make_unique<PrintInstruction>("LEVEL 4 EXECUTED")
-    );
-
-    // Level 3
-    std::vector<std::unique_ptr<Instruction>> level3;
-    level3.push_back(
-        std::make_unique<ForInstruction>(std::move(level4), 3)
-    );
-
-    // Level 2
-    std::vector<std::unique_ptr<Instruction>> level2;
-    level2.push_back(
-        std::make_unique<ForInstruction>(std::move(level3), 3)
-    );
-
-    // Level 1
-    std::vector<std::unique_ptr<Instruction>> level1;
-    level1.push_back(
-        std::make_unique<ForInstruction>(std::move(level2), 3)
-    );
-
-    // Root loop
-    proc->add_instruction(
-        std::make_unique<ForInstruction>(std::move(level1), 3)
-    );
-
-    return proc;
-}
-
-Process* test_nested_for_loops(ProcessManager& pm, const std::string& name) {
-    int pid = pm.create_process(name);
-    Process* proc = pm.get_process(pid);
-    proc->state = ProcessState::READY;
-    proc->current_instruction = 0;
-
-    std::vector<std::unique_ptr<Instruction>> outer_loop;
-    std::vector<std::unique_ptr<Instruction>> inner_loop;
-    
-    outer_loop.push_back(std::make_unique<PrintInstruction>("OUTER LOOP PRINT"));
-    inner_loop.push_back(std::make_unique<PrintInstruction>("INNER LOOP PRINT"));
-    outer_loop.push_back(std::make_unique<ForInstruction>(std::move(inner_loop), 3));
-    proc->add_instruction(std::make_unique<ForInstruction>(std::move(outer_loop), 3));
-
-    return proc;
-}
-
 // ============================================================================
 // ProcessGenerator — drives scheduler-start / scheduler-stop
 // ============================================================================
@@ -125,15 +70,7 @@ std::unique_ptr<Instruction> create_random_instruction(std::mt19937& rng, const 
 
 
     switch (type) {
-        case 1: //print
-        // {
-        //     std::string var = random_var(rng);
-
-        //     return std::make_unique<PrintInstruction>(
-        //         "Value of " + var + ": ",
-        //         var
-        //     );
-        // }
+        case 1: 
             return std::make_unique<PrintInstruction>("Hello world from " + process_name + "!");
         case 2: //declare
             return std::make_unique<DeclareInstruction>("var_" + std::to_string(reg_dist(rng)), val_dist(rng));
@@ -194,13 +131,6 @@ Process* ProcessGenerator::generate_one_process(std::string name) {
     // Randomize instruction count between [min_ins, max_ins]
     std::uniform_int_distribution<uint64_t> dist(config.min_ins, config.max_ins);
     uint64_t num_instructions = dist(rng);
-
-    // Fill with dummy PrintInstructions (lightweight placeholder instructions)
-    //for (uint64_t i = 0; i < num_instructions; ++i) {
-    //    proc->add_instruction(
-    //        std::make_unique<PrintInstruction>("Hello world from " + name)
-    //    );
-    //}
 
     //UPDATED Loop to generate random instructions of any type
     for (uint64_t i = 0; i < num_instructions; ++i) {
