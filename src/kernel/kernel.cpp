@@ -93,7 +93,7 @@ void Kernel::initialize_subsystems() {
     }
 
     // Initialize the process generator (controlled by scheduler-start / scheduler-stop)
-    this->process_generator = std::make_unique<ProcessGenerator>(this->process_manager, *this->scheduler, this->config);
+    this->process_generator = std::make_unique<ProcessGenerator>(this->process_manager, *this->scheduler, this->config, *this->memory_allocator);
 
     std::cout << "---config loaded with the following values---\n";
     std::cout << "num_cpu:\t\t" << this->config.num_cpu << "\n";
@@ -305,16 +305,14 @@ void Kernel::show_process_smi() {
     size_t total = memory_allocator ? memory_allocator->get_maximum_size() : 0;
     int mem_util = (total > 0) ? static_cast<int>(used * 100 / total) : 0;
 
-    auto to_mib = [](size_t bytes) {
-        return static_cast<double>(bytes) / (1024.0 * 1024.0);
-    };
-
+    // The nvidia-smi mockup uses MiB, but this OS's memory is configured in the
+    // [2^6, 2^16] BYTE range, so MiB renders every figure as "0.00MiB". Report the
+    // spec's native unit instead.
     std::cout << "-----------------------------------------------\n";
     std::cout << "| PROCESS-SMI V01.00 Driver Version: 01.00    |\n";
     std::cout << "-----------------------------------------------\n";
     std::cout << "CPU-Util: " << cpu_util << "%\n";
-    std::cout << "Memory Usage: " << std::fixed << std::setprecision(2) << to_mib(used)
-              << "MiB / " << to_mib(total) << "MiB\n";
+    std::cout << "Memory Usage: " << used << "B / " << total << "B\n";
     std::cout << "Memory Util: " << mem_util << "%\n\n";
 
     std::cout << "===============================================\n";
@@ -328,8 +326,7 @@ void Kernel::show_process_smi() {
         for (int pid : active_pids) {
             Process* p = process_manager.get_process(pid);
             if (p) {
-                std::cout << p->process_name << "    " << std::fixed << std::setprecision(2)
-                          << to_mib(p->mem_size) << "MiB\n";
+                std::cout << p->process_name << "    " << p->mem_size << "B\n";
             }
         }
     }
@@ -342,45 +339,46 @@ void Kernel::show_vmstat() {
     size_t used = memory_allocator ? memory_allocator->get_allocated_size() : 0;
     size_t free_mem = total - used;
 
-    auto to_kib = [](size_t bytes) {
-        return bytes / 1024;
-    };
-
-    // Active = memory used by RUNNING processes
-    // Inactive = memory used by non-RUNNING (READY/WAITING) processes
-    size_t active = 0, inactive = 0;
-    for (int pid : process_manager.get_all_pids()) {
-        Process* p = process_manager.get_process(pid);
-        if (!p) continue;
-        if (p->state == ProcessState::RUNNING) {
-            active += p->mem_size;
-        } else if (p->state != ProcessState::FINISHED && p->state != ProcessState::TERMINATED) {
-            inactive += p->mem_size;
+    // Active/inactive are counted in RESIDENT frames, not in each process's virtual
+    // mem_size. Summing mem_size lets "inactive" exceed total memory, which is
+    // incoherent under demand paging - a process can own far more address space
+    // than it currently has frames for. active + inactive == used by construction.
+    size_t active = 0;
+    if (memory_allocator) {
+        for (int pid : process_manager.get_all_pids()) {
+            Process* p = process_manager.get_process(pid);
+            if (!p || p->state != ProcessState::RUNNING) continue;
+            size_t pages = memory_allocator->get_page_count(pid);
+            size_t resident = 0;
+            for (size_t page = 0; page < pages; ++page) {
+                if (memory_allocator->is_page_resident(pid, page)) resident++;
+            }
+            active += resident * memory_allocator->get_page_size();
         }
     }
+    size_t inactive = (used > active) ? (used - active) : 0;
 
     size_t paged_in = memory_allocator ? memory_allocator->get_num_paged_in() : 0;
     size_t paged_out = memory_allocator ? memory_allocator->get_num_paged_out() : 0;
 
-    // CPU ticks
+    // Real accumulated tick counts from the cores. The previous version derived
+    // these from a utilization percentage, which pinned "total cpu ticks" to
+    // 100 x num_cpu forever regardless of how long the OS had been running.
     uint64_t idle_ticks = 0, active_ticks = 0, total_ticks = 0;
     if (cpu_manager) {
-        auto& cores = cpu_manager->get_cores();
-        for (const auto& core : cores) {
-            double util = core.get_utilization();
-            // Approximate from utilization percentage (not perfectly precise but the
-            // spec only asks for the general shape of vmstat -s output)
-            total_ticks += 100;
-            active_ticks += static_cast<uint64_t>(util);
-            idle_ticks += static_cast<uint64_t>(100 - util);
+        for (const auto& core : cpu_manager->get_cores()) {
+            total_ticks  += core.get_total_ticks();
+            active_ticks += core.get_active_ticks();
         }
+        idle_ticks = (total_ticks > active_ticks) ? (total_ticks - active_ticks) : 0;
     }
 
-    std::cout << to_kib(total)      << " K total memory\n";
-    std::cout << to_kib(used)       << " K used memory\n";
-    std::cout << to_kib(active)     << " K active memory\n";
-    std::cout << to_kib(inactive)   << " K inactive memory\n";
-    std::cout << to_kib(free_mem)   << " K free memory\n";
+    // The spec asks for memory in bytes.
+    std::cout << total      << " bytes total memory\n";
+    std::cout << used       << " bytes used memory\n";
+    std::cout << active     << " bytes active memory\n";
+    std::cout << inactive   << " bytes inactive memory\n";
+    std::cout << free_mem   << " bytes free memory\n";
     std::cout << idle_ticks  << " idle cpu ticks\n";
     std::cout << active_ticks << " active cpu ticks\n";
     std::cout << total_ticks << " total cpu ticks\n";

@@ -7,6 +7,7 @@
 #include "os_process.h"
 #include "config.h"
 #include "cpu.h"
+#include "memory_allocator.h"
 
 class ProcessViewer {
 private:
@@ -36,6 +37,10 @@ private:
     ProcessManager& process_manager;
     Scheduler& scheduler;
     const Config& config;
+    // Needed so generated processes get a page-fault handler, exactly like the
+    // ones created by screen -s / screen -c. Without it their READ/WRITE
+    // instructions can never resolve a page.
+    IMemoryAllocator& memory_allocator;
 
     std::atomic<bool> generating_{false};
     int next_process_number = 1;          // sequential counter for p01, p02, ...
@@ -47,7 +52,7 @@ private:
     std::string make_process_name(int number) const;
 
 public:
-    ProcessGenerator(ProcessManager& pm, Scheduler& sched, const Config& cfg);
+    ProcessGenerator(ProcessManager& pm, Scheduler& sched, const Config& cfg, IMemoryAllocator& alloc);
 
     // Creates a single dummy process with randomized PrintInstruction count
     Process* generate_one_process(std::string name);

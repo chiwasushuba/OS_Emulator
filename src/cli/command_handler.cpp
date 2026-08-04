@@ -15,7 +15,13 @@ std::vector<std::string> CommandHandler::tokenize(const std::string& input) {
 
     for (size_t i = 0; i < input.size(); ++i) {
         char c = input[i];
-        if (c == '"') {
+        // The spec escapes the inner quotes of an instruction string, e.g.
+        //   screen -c p 256 "... PRINT(\"Result: \" + varC)"
+        // so \" must survive as a literal quote instead of closing the argument.
+        if (c == '\\' && i + 1 < input.size() && input[i + 1] == '"') {
+            current += '"';
+            ++i;
+        } else if (c == '"') {
             in_quotes = !in_quotes;
             // Don't include the quote character itself
         } else if (c == ' ' && !in_quotes) {

@@ -51,7 +51,19 @@ std::vector<std::unique_ptr<Instruction>> parse_instructions(const std::string& 
 
     // Parse each instruction
     for (const auto& inst_str : parts) {
-        std::istringstream iss(inst_str);
+        // The spec writes calls as PRINT("..."), with no space before the paren, so
+        // a plain `iss >> opcode` would read `PRINT("Result:` as the opcode. Detach a
+        // '(' that sits inside the leading token so both PRINT(x) and PRINT x parse.
+        std::string normalized = inst_str;
+        size_t paren = normalized.find('(');
+        if (paren != std::string::npos && paren > 0) {
+            size_t first_ws = normalized.find_first_of(" \t");
+            if (first_ws == std::string::npos || paren < first_ws) {
+                normalized.insert(paren, " ");
+            }
+        }
+
+        std::istringstream iss(normalized);
         std::string opcode;
         iss >> opcode;
 
@@ -89,6 +101,11 @@ std::vector<std::unique_ptr<Instruction>> parse_instructions(const std::string& 
             std::string rest;
             std::getline(iss, rest);
             rest = trim(rest);
+            // Drop the wrapping parens of PRINT(...) before anything else, so the
+            // concatenation scan below sees `"Result: " + varC`, not `("Result: " + varC)`.
+            if (rest.size() >= 2 && rest.front() == '(' && rest.back() == ')') {
+                rest = trim(rest.substr(1, rest.size() - 2));
+            }
             // Strip surrounding quotes if present
             if (rest.size() >= 2 && rest.front() == '"' && rest.back() == '"') {
                 rest = rest.substr(1, rest.size() - 2);

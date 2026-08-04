@@ -30,6 +30,11 @@ public:
     bool tick(LogEntry& log);
 
     double get_utilization() const;
+
+    // Real accumulated tick counts, for vmstat. active = ticks that actually
+    // retired an instruction; total - active = idle.
+    uint64_t get_total_ticks() const { return total_ticks; }
+    uint64_t get_active_ticks() const { return active_ticks; }
 };
 
 class CPUManager {

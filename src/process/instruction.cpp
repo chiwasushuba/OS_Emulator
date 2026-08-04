@@ -227,18 +227,10 @@ void SleepInstruction::reset() {
 bool ReadInstruction::execute(Process& context, LogEntry& log) {
     initialize_entry(context, log);
 
-    size_t page_size = context.get_page_size();
-    if (page_size > 0) {
-        size_t page = (address / page_size);
-        if (!context.is_page_resident(page)) {
-            if (!context.ensure_page_resident(page, false)) {
-                log.message = "PAGE FAULT: READ at page " + std::to_string(page);
-                return false;
-            }
-        }
-    }
-
-    // Bounds check: address + 1 (need 2 bytes for uint16) must be within mem_size
+    // Bounds check FIRST. Address translation precedes demand paging: an address
+    // outside the process's own space has no page-table entry at all, so asking the
+    // pager for it returns false forever and the instruction retries indefinitely
+    // instead of faulting the process. Needs 2 bytes, so address and address+1.
     if (address % sizeof(uint16_t) != 0 || !context.is_address_valid(address) || !context.is_address_valid(address + sizeof(uint16_t) - 1)) {
         context.terminate_with_violation("0x" + [&]() {
             std::ostringstream oss;
@@ -251,6 +243,18 @@ bool ReadInstruction::execute(Process& context, LogEntry& log) {
             return oss.str();
         }();
         return true;
+    }
+
+    // Address is genuinely ours, so demand-page it in.
+    size_t page_size = context.get_page_size();
+    if (page_size > 0) {
+        size_t page = (address / page_size);
+        if (!context.is_page_resident(page)) {
+            if (!context.ensure_page_resident(page, false)) {
+                log.message = "PAGE FAULT: READ at page " + std::to_string(page);
+                return false;
+            }
+        }
     }
 
     // Read from memory (address is byte offset, each slot is 2 bytes)
@@ -269,18 +273,7 @@ bool ReadInstruction::execute(Process& context, LogEntry& log) {
 bool WriteInstruction::execute(Process& context, LogEntry& log) {
     initialize_entry(context, log);
 
-    size_t page_size = context.get_page_size();
-    if (page_size > 0) {
-        size_t page = (address / page_size);
-        if (!context.is_page_resident(page)) {
-            if (!context.ensure_page_resident(page, true)) {
-                log.message = "PAGE FAULT: WRITE at page " + std::to_string(page);
-                return false;
-            }
-        }
-    }
-
-    // Bounds check
+    // Bounds check FIRST - see the note in ReadInstruction::execute.
     if (address % sizeof(uint16_t) != 0 || !context.is_address_valid(address) || !context.is_address_valid(address + sizeof(uint16_t) - 1)) {
         context.terminate_with_violation("0x" + [&]() {
             std::ostringstream oss;
@@ -293,6 +286,18 @@ bool WriteInstruction::execute(Process& context, LogEntry& log) {
             return oss.str();
         }();
         return true;
+    }
+
+    // Address is genuinely ours, so demand-page it in.
+    size_t page_size = context.get_page_size();
+    if (page_size > 0) {
+        size_t page = (address / page_size);
+        if (!context.is_page_resident(page)) {
+            if (!context.ensure_page_resident(page, true)) {
+                log.message = "PAGE FAULT: WRITE at page " + std::to_string(page);
+                return false;
+            }
+        }
     }
 
     // Resolve and clamp value to uint16 range (resolve_operand already returns uint16_t)
