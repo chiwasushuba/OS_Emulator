@@ -13,3 +13,5 @@ UpgradeLog.htm
 build/
 *.exe
 config.txt
+*.pdf
+*.txt

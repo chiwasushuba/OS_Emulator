@@ -1,0 +1,20 @@
+CPU utilization: 75%
+Cores used: 6
+Cores available: 2
+------------------------------------------
+Running processes:
+26	    p26	(08/04/2026 01:23:11PM)	Core: 2                   5 / 115
+17	    p17	(08/04/2026 01:23:11PM)	Core: 0                   4 / 100
+8	    p08	(08/04/2026 01:23:11PM)	Core: 6                  11 / 116
+38	    p38	(08/04/2026 01:23:11PM)	Core: 5                   6 / 94
+57	    p57	(08/04/2026 01:23:11PM)	Core: 1                   2 / 101
+58	    p58	(08/04/2026 01:23:11PM)	Core: 7                   1 / 108
+
+Finished processes:
+None
+------------------------------------------
+
+Summary Stats:
+Total Active Processes: 6
+Total Finished Processes: 0
+Total Registered Processes: 83

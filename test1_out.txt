@@ -1,0 +1,75 @@
+
+ ______   ______   ______   ______   ______   ______   __  __ 
+/_____/\ /_____/\ /_____/\ /_____/\ /_____/\ /_____/\ /_/\/_/\
+\:::__\/ \::::_\/_\:::_ \ \\:::_ \ \\::::_\/_\::::_\/_\ \ \ \ \
+ \:\ \  __\:\/___/\\:\ \ \ \\:(_) \ \\:\/___/\\:\/___/\\:\_\ \ \
+  \:\ \/_/\\_::._\:\\:\ \ \ \\: ___\/ \::___\/_\_::._\:\\::::_\/
+   \:\_\ \ \ /____\:\\:\_\ \ \\ \ \    \:\____/\ /____\:\ \::\ \
+    \_____\/ \_____\/ \_____\/ \_\/     \_____\/ \_____\/  \__\/
+
+-------------------------------------------------------------
+Welcome to CSOPESY_Emulator!!
+Developers:
+Bernandino, Adrian Rafael
+Corpuz, Thara Mae
+Esleta, Joshua James
+Santos, Francine Hannah
+
+Last updated: 06-27-2026
+-------------------------------------------------------------
+
+root:\> Initializing system subsystems...
+
+---config loaded with the following values---
+num_cpu:		2
+scheduler:		fcfs
+quantum_cycles:		4
+batch_process_freq:	1
+min_ins:		4000
+max_ins:		4000
+delays_per_exec:	0
+max_overall_mem:	512
+mem_per_frame:		256
+min_mem_per_proc:	512
+max_mem_per_proc:	512
+
+
+root:\> Invalid command. Please try again.
+
+root:\> CPU utilization: 0%
+Cores used: 0
+Cores available: 2
+Running processes:
+None
+
+Finished processes:
+None
+------------------------------------------
+
+root:\> -----------------------------------------------
+| PROCESS-SMI V01.00 Driver Version: 01.00    |
+-----------------------------------------------
+CPU-Util: 0%
+Memory Usage: 0B / 512B
+Memory Util: 0%
+
+===============================================
+Running processes and memory usage:
+-----------------------------------------------
+(none)
+-----------------------------------------------
+
+root:\> 512 bytes total memory
+0 bytes used memory
+0 bytes active memory
+0 bytes inactive memory
+512 bytes free memory
+502 idle cpu ticks
+0 active cpu ticks
+502 total cpu ticks
+0 pages paged in
+0 pages paged out
+
+root:\> 
+STDERR:
+ERROR: quantumcycles must be [1, 2^32]; using default instead...

@@ -4,13 +4,27 @@
 constexpr uint64_t MAX_CONFIG_VALUE = 4294967296ULL;
 
 struct Config {
-    int num_cpu = 4;
+    int num_cpu = 2;
     std::string scheduler = "rr";
-    uint64_t quantum_cycles = 5;
+    uint64_t quantum_cycles = 4;
     uint64_t batch_process_freq = 1;
-    uint64_t min_ins = 1000;
-    uint64_t max_ins = 2000;
+    uint64_t min_ins = 100;
+    uint64_t max_ins = 100;
     uint64_t delays_per_exec = 0;
+
+    // Memory manager configuration
+    uint64_t max_overall_mem = 16384;  // total bytes of main memory
+    uint64_t mem_per_frame = 64;       // bytes per frame (reserved for paging allocators)
+    uint64_t min_mem_per_proc = 4096;
+    uint64_t max_mem_per_proc = 4096;
+
+    // Directory that config.txt was actually found in, with a trailing
+    // separator (empty = current working directory). Every file the emulator
+    // produces - csopesy-backing-store.txt, csopesy_report.txt - is anchored
+    // here so they land next to config.txt no matter which directory the
+    // executable was launched from. Hard-coding "../../" put the backing store
+    // outside the project entirely when the exe was run from the project root.
+    std::string base_dir;
 };
 
 void validateConfig(Config& config);

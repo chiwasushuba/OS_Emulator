@@ -2,7 +2,7 @@
 #include <kernel.h>
 
 int main() {
-    std::cout << "Initializing Kernel...\n";
+    // Bootstrap
     Kernel kernel;
     kernel.start();
     return 0;

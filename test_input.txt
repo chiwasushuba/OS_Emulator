@@ -1,0 +1,13 @@
+initialize
+process-smi
+vmstat
+screen -s proc1 128
+exit
+screen -c proc2 128 "DECLARE x 10; WRITE 0x0 x; READ y 0x0; PRINT y; SLEEP 2"
+exit
+screen -c proc3 64 "WRITE 0x0100 99"
+exit
+process-smi
+screen -r proc3
+exit
+exit

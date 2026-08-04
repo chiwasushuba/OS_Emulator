@@ -12,4 +12,5 @@ target_include_directories(scheduler
 target_link_libraries(scheduler
     PUBLIC process
     PUBLIC cpu
+    PUBLIC memory
 )

@@ -1,0 +1,131 @@
+#pragma once
+#include <string>
+#include <vector>
+#include <map>
+#include <cstddef>
+#include <cstdint>
+#include <mutex>
+
+// A contiguous chunk of memory currently owned by a process.
+// start is inclusive, end is exclusive (end - start == size allocated).
+struct MemoryBlock
+{
+	size_t start;
+	size_t end;
+	int pid;
+	std::string process_name;
+};
+
+// Same shape as the professor's IMemoryAllocator, extended with pid/name so
+// the allocator can produce the memory_stamp_<qq>.txt reports on its own.
+class IMemoryAllocator
+{
+public:
+	virtual ~IMemoryAllocator() = default;
+
+	// Returns a pointer identifying the allocated block, or nullptr if there
+	// is no free space big enough (caller must NOT retry immediately -
+	// that's the scheduler's job, e.g. requeue at the tail).
+	virtual void *allocate(size_t size, int pid, const std::string &process_name) = 0;
+
+	// Frees the block previously returned by allocate(). No-op on nullptr.
+	virtual void deallocate(void *ptr) = 0;
+
+	// Raw ASCII dump of memory ('.' = free, '#' = allocated).
+	virtual std::string visualizeMemory() = 0;
+
+	// Writes "memory_stamp_<quantum_cycle>.txt" to output_dir.
+	virtual void generate_memory_stamp(uint64_t quantum_cycle, const std::string &output_dir = "../../") const = 0;
+
+	// Reporting helpers — overridden by concrete allocators
+	virtual size_t get_maximum_size() const { return 0; }
+	virtual size_t get_allocated_size() const { return 0; }
+	virtual size_t get_free_size() const { return 0; }
+	virtual size_t get_num_paged_in() const { return 0; }
+	virtual size_t get_num_paged_out() const { return 0; }
+	virtual size_t get_page_size() const { return 0; }
+	virtual size_t get_page_count(int pid) const { return 0; }
+	virtual bool is_page_resident(int pid, size_t page_number) const { return true; }
+	virtual bool ensure_page_resident(int pid, size_t page_number, bool for_write = false) { return true; }
+	virtual bool mark_page_dirty(int pid, size_t page_number) { return true; }
+
+	// Main-memory access. vaddr is a process-VIRTUAL byte address; the allocator
+	// translates it through that process's page table to a physical offset in the
+	// frame that currently backs the page. Returns false when the page is not
+	// resident - the caller must fault it in (ensure_page_resident) and retry,
+	// which is what makes the pager demand-driven.
+	virtual bool read_memory(int pid, size_t vaddr, uint16_t &out) const { return false; }
+	virtual bool write_memory(int pid, size_t vaddr, uint16_t value) { return false; }
+
+	// Result of an atomic memory access. See access_memory().
+	enum AccessResult
+	{
+		ACCESS_INVALID = -1, // no page-table entry covers this address
+		ACCESS_OK = 0,		 // served, every page was already resident
+		ACCESS_FAULTED = 1	 // served, but a page fault had to be handled first
+	};
+
+	// Atomic demand-paged access to a uint16 at a virtual byte address.
+	//
+	// This exists because faulting a page in and then reading it were two
+	// separate lock acquisitions, which is unsound in two ways:
+	//   1. Another core can steal the frame in between, so the access fails and
+	//      the instruction retries forever.
+	//   2. A uint16 straddling a page boundary needs TWO pages resident at once.
+	//      With one frame (mem-per-frame == max-overall-mem, as in test cases 2
+	//      and 3) that is impossible, so the retry NEVER succeeds and the core is
+	//      pinned for the rest of the run.
+	//
+	// The fix is to fault-in and access under a single lock, translating ONE BYTE
+	// AT A TIME. A single byte only ever needs one frame, so forward progress is
+	// guaranteed no matter how small physical memory is.
+	virtual int access_memory(int pid, size_t vaddr, uint16_t &value, bool is_write)
+	{
+		return ACCESS_INVALID;
+	}
+
+	// Bytes of main memory each process currently occupies, for every process
+	// that holds an allocation. Returned in ONE pass under ONE lock: the
+	// reporting commands must never poll the allocator per page, or they starve
+	// the page-fault path on every core while they run.
+	virtual std::map<int, size_t> get_resident_bytes_by_pid() const { return {}; }
+};
+
+// First-fit flat memory allocator: scans memory from address 0 upward and
+// places a process in the first hole big enough to hold it. No paging, no
+// backing store - if nothing fits, allocate() returns nullptr.
+class FirstFitAllocator : public IMemoryAllocator
+{
+private:
+	size_t maximumSize;
+	size_t allocatedSize;
+	std::vector<char> memory;
+	std::vector<bool> allocationMap;
+	std::vector<MemoryBlock> allocatedBlocks;
+	mutable std::mutex mem_mutex;
+
+	void initializeMemory();
+	// NOTE: unlike the professor's canAllocateAt (which only checked the start
+	// index), this checks that EVERY byte in [index, index+size) is free -
+	// otherwise first-fit could silently stomp on another process's memory.
+	bool isRangeFree(size_t index, size_t size) const;
+	void markRange(size_t index, size_t size, bool value);
+
+public:
+	explicit FirstFitAllocator(size_t maximumSize);
+	~FirstFitAllocator() override = default;
+
+	void *allocate(size_t size, int pid, const std::string &process_name) override;
+	void deallocate(void *ptr) override;
+	std::string visualizeMemory() override;
+	void generate_memory_stamp(uint64_t quantum_cycle, const std::string &output_dir = "../../") const override;
+
+	// Reporting helpers
+	size_t get_maximum_size() const override;
+	size_t get_allocated_size() const override;
+	size_t get_free_size() const override;
+	size_t get_num_paged_in() const override { return 0; }
+	size_t get_num_paged_out() const override { return 0; }
+	size_t get_num_processes_in_memory() const;
+	std::vector<MemoryBlock> get_allocated_blocks() const; // sorted ascending by start address
+};

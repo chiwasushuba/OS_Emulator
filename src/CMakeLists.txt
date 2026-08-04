@@ -3,6 +3,7 @@ add_subdirectory(config)
 add_subdirectory(core)
 add_subdirectory(cpu)
 add_subdirectory(kernel)
+add_subdirectory(memory)
 add_subdirectory(process)
 add_subdirectory(scheduler)
 
