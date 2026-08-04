@@ -14,18 +14,21 @@ void format_active_entry(std::stringstream& ss, Process* process) {
         ss << std::setw(20) << process->current_instruction+1 << " / " << process->total_instructions() << "\n";
 }
 
+// The timestamp is the process's own creation/finish time. These used to print
+// get_current_time(), so every row in a listing showed the moment the listing
+// was requested rather than anything about the process.
 void format_finished_entry(std::stringstream& ss, Process* process) {
         ss << process->id << "\t";
         ss << std::setw(7) << process->process_name << "\t";
-        ss << "(" << get_current_time() << ")\t";
-        ss << "Finished\t";
+        ss << "(" << (process->finished_at.empty() ? process->created_at : process->finished_at) << ")\t";
+        ss << (process->access_violation ? "Terminated" : "Finished") << "\t";
         ss << process->current_instruction << " / " << process->total_instructions() << "\n";
 }
 
 void format_snapshot_entry(std::stringstream& ss, const ProcessSnapshot& snapshot) {
     ss << snapshot.id << "\t";
     ss << std::setw(7) << snapshot.name << "\t";
-    ss << "(" << get_current_time() << ")\t";
+    ss << "(" << snapshot.created_at << ")\t";
     ss << "Core: " << snapshot.core_id;
     ss << std::setw(20) << snapshot.current_instruction+1 << " / " << snapshot.total_instructions << "\n";
 }
@@ -127,7 +130,7 @@ void ProcessViewer::view_process(std::string process_name) {
             break;
         }
         else {
-            std::cout << "Invalid input! use \"process-smi\" or \"exit\"";
+            std::cout << "Invalid input! use \"process-smi\" or \"exit\"\n";
         }
     }
 }
@@ -135,6 +138,11 @@ void ProcessViewer::view_process(std::string process_name) {
 void ProcessViewer::print_log(int pid) {
     auto logs = logger.get_logs(pid);
     Process* process = process_manager.get_process(pid);
+
+    if (process == nullptr) {
+        std::cout << "Process not found.\n";
+        return;
+    }
 
     std::cout << "\n\nProcess name: " << process->process_name << "\n";
     std::cout << "ID: " << process->id << "\n";
@@ -145,6 +153,13 @@ void ProcessViewer::print_log(int pid) {
         log_string << "Core:" << entry.core_id;
         log_string << " \"" << entry.message << "\"\n";
         std::cout << log_string.str();
+    }
+
+    // MO1: "If the process has finished, simply print 'Finished!' after the
+    // process name, ID, and logs have been printed."
+    if (process->state == ProcessState::FINISHED || process->state == ProcessState::TERMINATED) {
+        std::cout << "\nFinished!\n";
+        return;
     }
 
     std::cout << "\nCurrent instruction line: " << process->current_instruction << "\n";

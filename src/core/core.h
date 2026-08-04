@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <atomic>
+#include <mutex>
 #include <cstdint>
 #include <random>
 #include "os_process.h"
@@ -47,6 +48,12 @@ private:
     uint64_t ticks_since_last_generate = 0;
 
     std::mt19937 rng{std::random_device{}()};
+
+    // generate_one_process() is called from the kernel clock thread (tick) AND
+    // from the CLI thread (screen -s / screen -c). Without this, both threads
+    // mutate rng and next_process_number concurrently, which can hand out the
+    // same process name twice and is undefined behaviour on the generator state.
+    std::mutex gen_mutex;
 
     // Builds a sequential name like "p01", "p02", ..., "p1240"
     std::string make_process_name(int number) const;

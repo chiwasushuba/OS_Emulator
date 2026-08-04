@@ -63,11 +63,9 @@ void ReportGenerator::generate_report(const std::string& filename) {
         for (int pid : finished_pids) {
             Process* p = process_manager.get_process(pid);
             if (p) {
-                outfile << p->process_name << "\t";
-                outfile << p->process_name << "\t";
-                outfile << "(" << get_current_time() << ")\t";
-                outfile << "Finished\t";
-                outfile << p->current_instruction << " / " << p->total_instructions() << "\n";
+                std::stringstream entry_string;
+                format_finished_entry(entry_string, p);
+                outfile << entry_string.str();
             }
         }
     }

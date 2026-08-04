@@ -45,6 +45,7 @@ struct ProcessSnapshot
 	int current_instruction;
 	size_t total_instructions;
 	size_t mem_size;
+	std::string created_at;
 };
 
 enum class LogEventType
@@ -151,16 +152,39 @@ public: // public for easier manipulation by the scheduler
 	// space - the bound that decides what is an access violation.
 	std::function<bool(size_t, uint16_t &)> read_memory_handler;
 	std::function<bool(size_t, uint16_t)> write_memory_handler;
+	// Atomic fault-in + access, in ONE allocator call. Returns
+	// IMemoryAllocator::AccessResult. This is what READ/WRITE use; the two
+	// handlers above remain for callers that only need a plain translated access.
+	std::function<int(size_t, uint16_t &, bool)> access_memory_handler;
 
 	// Access violation state
 	bool access_violation = false;
 	std::string violation_address = "";
 	std::string violation_timestamp = "";
 
+	// Timestamps shown by screen -ls / report-util. The listing used to print
+	// "now" for every row, so every process appeared to have been created at the
+	// instant the command was typed.
+	std::string created_at = "";
+	std::string finished_at = "";
+
+	// Set for exactly one tick when a memory instruction had to have a page
+	// faulted in. The CPU core reads it to decide whether the tick counted as
+	// executing an instruction (it did not - it was spent handling the fault),
+	// which is what keeps utilization honest under memory pressure.
+	bool page_fault_stalled = false;
+
 	// Symbol table limit: the segment is a fixed 64 bytes and a uint16 costs
 	// 2 bytes, so 64 / 2 = 32 variables.
 	static constexpr size_t SYMBOL_TABLE_BYTES = 64;
 	static constexpr size_t MAX_VARIABLES = SYMBOL_TABLE_BYTES / sizeof(uint16_t);
+
+	// Mirrors IMemoryAllocator::AccessResult. Duplicated rather than included
+	// because the memory subsystem already depends on this header, and including
+	// it back would make the dependency circular.
+	static constexpr int MEM_ACCESS_INVALID = -1;
+	static constexpr int MEM_ACCESS_OK = 0;
+	static constexpr int MEM_ACCESS_FAULTED = 1;
 
 	void set_memory_handlers(std::function<bool(size_t, uint16_t &)> reader,
 							 std::function<bool(size_t, uint16_t)> writer)
@@ -181,7 +205,23 @@ public: // public for easier manipulation by the scheduler
 		return write_memory_handler ? write_memory_handler(address, value) : false;
 	}
 
+	void set_access_memory_handler(std::function<int(size_t, uint16_t &, bool)> handler)
+	{
+		access_memory_handler = std::move(handler);
+	}
+
+	// Faults in and accesses a uint16 in one atomic allocator call. Returns
+	// IMemoryAllocator::AccessResult (-1 invalid / 0 served / 1 served-after-fault).
+	int access_memory(size_t address, uint16_t &value, bool is_write)
+	{
+		if (!access_memory_handler)
+			return -1;
+		return access_memory_handler(address, value, is_write);
+	}
+
 	bool execute_next_instruction(LogEntry &log); // should, LogEntry& log call logging
+	// Stamps finished_at the first time the process reaches FINISHED/TERMINATED.
+	void mark_finished_time();
 	void set_page_size(size_t page_size_bytes) { page_size = page_size_bytes; }
 	size_t get_page_size() const { return page_size; }
 	void set_page_fault_handler(std::function<bool(size_t, bool)> handler)
@@ -223,6 +263,23 @@ public: // public for easier manipulation by the scheduler
 	bool ensure_symbol_table_resident()
 	{
 		return ensure_bytes_resident(0, SYMBOL_TABLE_BYTES, true);
+	}
+
+	// Same idea, but reports WHETHER a fault had to be serviced, which
+	// ensure_symbol_table_resident() cannot - it returns true both when the
+	// segment was already resident and when it had just been paged in, so
+	// DECLARE could never actually stall on it. Returns MEM_ACCESS_*.
+	// The segment is 64 bytes and mem-per-frame is at least 64, so it is always
+	// exactly page 0 and touching address 0 covers all of it.
+	int touch_symbol_table()
+	{
+		if (!access_memory_handler)
+			return MEM_ACCESS_OK; // paging not wired up (e.g. a unit-test process)
+		uint16_t probe = 0;
+		int result = access_memory_handler(0, probe, false);
+		// No page table at all means the process has not been admitted to memory
+		// yet; let the declaration through rather than stalling forever.
+		return (result == MEM_ACCESS_INVALID) ? MEM_ACCESS_OK : result;
 	}
 
 	bool symbol_table_full() const { return symbol_table.size() >= MAX_VARIABLES; }
@@ -301,17 +358,23 @@ public: // public for easier manipulation by the scheduler
 };
 
 // DECLARE(var, value)
+//
+// Per the spec, a declaration cannot execute while the symbol table segment is
+// swapped out - it page-faults exactly like READ/WRITE does, and stalls a tick.
 class DeclareInstruction : public Instruction
 {
 private:
 	std::string var;
 	uint16_t value;
+	bool fault_stall_pending = false;
 
 public:
 	DeclareInstruction(std::string var_name, uint16_t val)
 		: var(var_name), value(val) {};
 
 	bool execute(Process &context, LogEntry &log) override;
+	bool is_completed() const override { return !fault_stall_pending; }
+	void reset() override { fault_stall_pending = false; }
 };
 
 // ADD(var1, var2/value, var3/value)
@@ -413,16 +476,33 @@ public:
 };
 
 // READ(var, hex_address) — loads uint16 from process memory into variable
+//
+// access_memory() completes the access even when it had to fault a page in, so
+// the loaded value is cached in fault_stall_value; the instruction then burns
+// one tick without completing (the spec's visible "restart the instruction once
+// a valid frame is found") and finishes from the cache on the next tick.
+// Bounded at one retry per fault, so unlike the old fault-then-access-separately
+// scheme it can never livelock. The state lives here rather than on the Process
+// because a FOR loop advances on is_completed(), and it must not step past a
+// nested instruction that is still waiting on its page.
 class ReadInstruction : public Instruction
 {
 private:
 	std::string var;
 	uint32_t address;
+	bool fault_stall_pending = false;
+	uint16_t fault_stall_value = 0;
 
 public:
 	ReadInstruction(std::string var_name, uint32_t addr)
 		: var(std::move(var_name)), address(addr) {}
 	bool execute(Process &context, LogEntry &log) override;
+	bool is_completed() const override { return !fault_stall_pending; }
+	void reset() override
+	{
+		fault_stall_pending = false;
+		fault_stall_value = 0;
+	}
 };
 
 // WRITE(hex_address, value_or_var) — stores uint16 into process memory
@@ -431,11 +511,14 @@ class WriteInstruction : public Instruction
 private:
 	uint32_t address;
 	Operand value;
+	bool fault_stall_pending = false;
 
 public:
 	WriteInstruction(uint32_t addr, Operand val)
 		: address(addr), value(val) {}
 	bool execute(Process &context, LogEntry &log) override;
+	bool is_completed() const override { return !fault_stall_pending; }
+	void reset() override { fault_stall_pending = false; }
 };
 
 // Helper funtions

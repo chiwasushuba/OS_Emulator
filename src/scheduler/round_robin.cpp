@@ -19,11 +19,13 @@ void RoundRobinScheduler::add_process(Process* process) {
         process->state = ProcessState::TERMINATED;
         return;
     }
+    std::lock_guard<std::mutex> lock(sched_mutex);
     process->state = ProcessState::READY;
     ready_queue.push(process);
 }
 
 void RoundRobinScheduler::tick() {
+    std::lock_guard<std::mutex> lock(sched_mutex);
     auto& cores = cpu_manager.get_cores();
 
     for (size_t i = 0; i < cores.size(); ++i) {

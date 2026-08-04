@@ -12,6 +12,9 @@ private:
     int ticks_since_last_exec;
     uint64_t total_ticks = 0;
     uint64_t active_ticks = 0;
+    // True when the last tick was spent actually running a process rather than
+    // idle or stalled handling a page fault. See tick().
+    bool last_tick_productive = false;
 
 public:
     explicit CPUCore(int id, int delay=0);
@@ -31,10 +34,13 @@ public:
 
     double get_utilization() const;
 
-    // Real accumulated tick counts, for vmstat. active = ticks that actually
-    // retired an instruction; total - active = idle.
+    // Real accumulated tick counts, for vmstat. active = ticks the core spent
+    // "actually executing instructions" (the spec's wording); total - active =
+    // idle, which now correctly includes ticks lost to page-fault handling.
     uint64_t get_total_ticks() const { return total_ticks; }
     uint64_t get_active_ticks() const { return active_ticks; }
+
+    bool was_productive() const { return last_tick_productive; }
 };
 
 class CPUManager {

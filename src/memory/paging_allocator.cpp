@@ -149,28 +149,22 @@ bool PagingAllocator::is_page_resident(int pid, size_t page_number) const {
     return it->second[page_number].frame != -1;
 }
 
-bool PagingAllocator::ensure_page_resident(int pid, size_t page_number, bool for_write) {
-    std::lock_guard<std::mutex> lock(mem_mutex);
-    auto it = pageTables.find(pid);
-    if (it == pageTables.end() || page_number >= it->second.size()) {
-        return false;
-    }
-
-    PageTableEntry& entry = it->second[page_number];
+int PagingAllocator::fault_in_locked(std::vector<PageTableEntry>& table, int pid, size_t page, bool for_write) {
+    PageTableEntry& entry = table[page];
     if (entry.frame != -1) {
         if (for_write) {
             entry.is_dirty = true;
         }
-        return true;
+        return entry.frame;
     }
 
     int frame = obtainFrame();
     if (frame == -1) {
-        return false;
+        return -1;
     }
 
     frameOwnerPid[frame] = pid;
-    frameOwnerPage[frame] = static_cast<int>(page_number);
+    frameOwnerPage[frame] = static_cast<int>(page);
     frameFifo.push_back(frame);
 
 	// A page touched for the first time starts zeroed ("if the memory block
@@ -178,14 +172,63 @@ bool PagingAllocator::ensure_page_resident(int pid, size_t page_number, bool for
 	// backing store gets its saved bytes copied into the new frame.
 	clear_frame_locked(frame);
 	if (entry.on_backing_store) {
-		loadFromBackingStore(pid, static_cast<int>(page_number), frame);
+		loadFromBackingStore(pid, static_cast<int>(page), frame);
 	}
     entry.frame = frame;
     entry.on_backing_store = false;
     entry.is_dirty = for_write;
     numPagedIn++;
 
-    return true;
+    return frame;
+}
+
+bool PagingAllocator::ensure_page_resident(int pid, size_t page_number, bool for_write) {
+    std::lock_guard<std::mutex> lock(mem_mutex);
+    auto it = pageTables.find(pid);
+    if (it == pageTables.end() || page_number >= it->second.size()) {
+        return false;
+    }
+    return fault_in_locked(it->second, pid, page_number, for_write) != -1;
+}
+
+int PagingAllocator::access_memory(int pid, size_t vaddr, uint16_t& value, bool is_write) {
+    std::lock_guard<std::mutex> lock(mem_mutex);
+
+    auto it = pageTables.find(pid);
+    if (it == pageTables.end()) return ACCESS_INVALID;
+    auto& table = it->second;
+
+    bool faulted = false;
+    uint16_t assembled = 0;
+
+    // ONE BYTE AT A TIME. A uint16 spans two byte addresses that may live in
+    // different pages; handling them independently means each step needs exactly
+    // one frame, so this always completes even when numFrames == 1. Handling
+    // them together would require both pages resident simultaneously, which with
+    // a single frame is unsatisfiable - the instruction would retry forever and
+    // pin its core.
+    for (size_t b = 0; b < sizeof(uint16_t); ++b) {
+        size_t addr = vaddr + b;
+        size_t page = addr / frameSize;
+        if (page >= table.size()) return ACCESS_INVALID;
+
+        if (table[page].frame == -1) {
+            faulted = true;
+        }
+        int frame = fault_in_locked(table, pid, page, is_write);
+        if (frame == -1) return ACCESS_INVALID; // only when numFrames == 0
+
+        size_t offset = static_cast<size_t>(frame) * frameSize + (addr % frameSize);
+        if (is_write) {
+            physicalMemory[offset] = static_cast<uint8_t>((value >> (8 * b)) & 0xFF);
+            table[page].is_dirty = true;
+        } else {
+            assembled |= static_cast<uint16_t>(static_cast<uint16_t>(physicalMemory[offset]) << (8 * b));
+        }
+    }
+
+    if (!is_write) value = assembled;
+    return faulted ? ACCESS_FAULTED : ACCESS_OK;
 }
 
 bool PagingAllocator::mark_page_dirty(int pid, size_t page_number) {

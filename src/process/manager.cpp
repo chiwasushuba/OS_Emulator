@@ -8,6 +8,10 @@ int ProcessManager::create_process(const std::string& name) {
 
     process->id = pid;
     process->process_name = name;
+    // Stamped once, at creation. screen -ls / report-util used to print
+    // get_current_time() for every row, so every process looked like it had been
+    // created at the instant the listing was requested.
+    process->created_at = get_current_time();
 
     processes[pid] = std::move(process);
 
@@ -82,7 +86,8 @@ std::vector<ProcessSnapshot> ProcessManager::get_active_processes() const {
                 process->core_id,
                 process->current_instruction,
                 process->total_instructions(),
-                process->mem_size
+                process->mem_size,
+                process->created_at
             });
         }
     }

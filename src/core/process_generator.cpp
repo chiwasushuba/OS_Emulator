@@ -136,6 +136,7 @@ std::unique_ptr<Instruction> create_random_instruction(std::mt19937& rng, const 
 }
 
 Process* ProcessGenerator::generate_one_process(std::string name, size_t mem_size_override) {
+    std::lock_guard<std::mutex> lock(gen_mutex);
 
     int pid = process_manager.create_process(name);
     Process* proc = process_manager.get_process(pid);
@@ -156,6 +157,13 @@ Process* ProcessGenerator::generate_one_process(std::string name, size_t mem_siz
         },
         [this, pid](size_t vaddr, uint16_t value) {
             return this->memory_allocator.write_memory(pid, vaddr, value);
+        });
+    // Atomic fault-in + access in one allocator call - what READ/WRITE actually
+    // use. Faulting and accessing separately let another core steal the frame in
+    // between, and made a page-straddling uint16 unserviceable under tight memory.
+    proc->set_access_memory_handler(
+        [this, pid](size_t vaddr, uint16_t& value, bool is_write) {
+            return this->memory_allocator.access_memory(pid, vaddr, value, is_write);
         });
 
     // Fix the memory size BEFORE generating instructions - create_random_instruction

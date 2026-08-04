@@ -13,9 +13,16 @@ CPUManager::CPUManager(int num_cores, uint64_t delay_per_exec)
 double CPUManager::get_global_utilization() const {
     if (cores.empty()) return 0.0;
 
-    // Simple snapshot: how many cores are busy right now out of the total,
-    // rather than an average of each core's lifetime utilization.
-    return (static_cast<double>(get_cores_used()) / static_cast<double>(num_cores)) * 100.0;
+    // Snapshot of how many cores did useful work on the last tick, out of the
+    // total. Deliberately NOT "cores that own a process": under memory pressure
+    // every core can own a process while nearly all of them sit stalled on the
+    // demand pager, and reporting 100% there contradicts what the system is
+    // actually doing (only as many processes as fit in memory can progress).
+    int productive = 0;
+    for (const auto& core : cores) {
+        if (core.was_productive()) productive++;
+    }
+    return (static_cast<double>(productive) / static_cast<double>(num_cores)) * 100.0;
 }
 
 std::vector<CPUCore>& CPUManager::get_cores() {

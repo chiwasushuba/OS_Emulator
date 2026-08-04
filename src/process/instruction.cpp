@@ -112,10 +112,17 @@ bool PrintInstruction::execute(Process& context, LogEntry& log) {
 
 bool DeclareInstruction::execute(Process& context, LogEntry& log) {
     // "Variable declaration commands cannot execute if the symbol table segment
-    // is not in physical memory. Thus, a page fault also occurs." Retry next tick.
-    if (!context.ensure_symbol_table_resident()) {
-        log.message = "PAGE FAULT: DECLARE (symbol table segment)";
-        return false;
+    // is not in physical memory. Thus, a page fault also occurs." The segment is
+    // faulted in here; the declaration itself is deferred to the next tick.
+    if (!fault_stall_pending) {
+        if (context.touch_symbol_table() == Process::MEM_ACCESS_FAULTED) {
+            fault_stall_pending = true;
+            context.page_fault_stalled = true;
+            log.message = "PAGE FAULT: DECLARE (symbol table segment)";
+            return false;
+        }
+    } else {
+        fault_stall_pending = false;
     }
 
     std::stringstream ss;
@@ -272,19 +279,36 @@ bool ReadInstruction::execute(Process& context, LogEntry& log) {
         return true;
     }
 
-    // Address is genuinely ours, so demand-page it in. A uint16 can straddle two
-    // pages when the address is unaligned, so both halves must be resident.
-    if (!context.ensure_bytes_resident(address, 2, false)) {
-        log.message = "PAGE FAULT: READ at " + hex_addr(address);
-        return false;
-    }
-
-    // Translated load from main memory. A page can be stolen between the fault
-    // above and this call, so a failure here is another fault, not an error.
+    // Address is genuinely ours, so demand-page it in and load it - both in a
+    // SINGLE atomic allocator call. Splitting fault-in from the access let
+    // another core steal the frame in between, and made a page-straddling uint16
+    // unserviceable whenever physical memory held fewer frames than the access
+    // needed, retrying forever and pinning this core.
     uint16_t val = 0;
-    if (!context.read_memory(address, val)) {
-        log.message = "PAGE FAULT: READ at " + hex_addr(address);
-        return false;
+    if (!fault_stall_pending) {
+        int result = context.access_memory(address, val, false);
+        if (result == Process::MEM_ACCESS_INVALID) {
+            // No page-table entry despite passing the bounds check: the process
+            // has no allocation at all. Treat it as the violation it is rather
+            // than spinning.
+            context.terminate_with_violation(hex_addr(address), get_current_time_hms());
+            log.message = "ACCESS VIOLATION: READ at " + hex_addr(address);
+            log.event_type = LogEventType::LOG;
+            return true;
+        }
+        if (result == Process::MEM_ACCESS_FAULTED) {
+            // The page has now been brought in and the value read, but the spec
+            // wants the instruction restarted once a valid frame is found. Burn
+            // this tick on fault handling and complete on the next one.
+            fault_stall_pending = true;
+            fault_stall_value = val;
+            context.page_fault_stalled = true;
+            log.message = "PAGE FAULT: READ at " + hex_addr(address);
+            return false;
+        }
+    } else {
+        val = fault_stall_value;
+        fault_stall_pending = false;
     }
     context.set_variable(var, val);
 
@@ -306,17 +330,28 @@ bool WriteInstruction::execute(Process& context, LogEntry& log) {
         return true;
     }
 
-    if (!context.ensure_bytes_resident(address, 2, true)) {
-        log.message = "PAGE FAULT: WRITE at " + hex_addr(address);
-        return false;
-    }
-
     // Resolve and clamp value to uint16 range (resolve_operand already returns uint16_t)
     uint16_t resolved = resolve_operand(context, value);
 
-    if (!context.write_memory(address, resolved)) {
-        log.message = "PAGE FAULT: WRITE at " + hex_addr(address);
-        return false;
+    // Atomic fault-in + store - see the note in ReadInstruction::execute. The
+    // store has already landed by the time a fault is reported, so the retry
+    // tick simply completes the instruction.
+    if (!fault_stall_pending) {
+        int result = context.access_memory(address, resolved, true);
+        if (result == Process::MEM_ACCESS_INVALID) {
+            context.terminate_with_violation(hex_addr(address), get_current_time_hms());
+            log.message = "ACCESS VIOLATION: WRITE at " + hex_addr(address);
+            log.event_type = LogEventType::LOG;
+            return true;
+        }
+        if (result == Process::MEM_ACCESS_FAULTED) {
+            fault_stall_pending = true;
+            context.page_fault_stalled = true;
+            log.message = "PAGE FAULT: WRITE at " + hex_addr(address);
+            return false;
+        }
+    } else {
+        fault_stall_pending = false;
     }
 
     std::stringstream ss;

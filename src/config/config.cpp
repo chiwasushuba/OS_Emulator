@@ -18,8 +18,16 @@ void validateConfig(Config& config) {
         std::cerr << "ERROR: scheduler must be \"fcfs\" or \"rr\"; using default instead...\n";
         config.scheduler = default_config.scheduler;
     }
-    
-    if(config.quantum_cycles < 1 || config.quantum_cycles > MAX_CONFIG_VALUE) {
+
+    // quantum-cycles is the round-robin time slice and "has no effect on other
+    // schedulers", so 0 is harmless under FCFS - and the handed-out FCFS test
+    // configs do set it to 0. Rejecting it there printed an alarming ERROR line
+    // in the middle of a graded run for a value that is never read.
+    // Checked AFTER the scheduler check so a bad scheduler name has already
+    // fallen back to its default.
+    const bool quantum_is_used = (config.scheduler == "rr");
+    if(quantum_is_used ? (config.quantum_cycles < 1 || config.quantum_cycles > MAX_CONFIG_VALUE)
+                       : (config.quantum_cycles > MAX_CONFIG_VALUE)) {
         std::cerr
             << "ERROR: quantumcycles must be [1, 2^32]; using default instead...\n";
 

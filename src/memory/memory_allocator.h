@@ -57,6 +57,33 @@ public:
 	virtual bool read_memory(int pid, size_t vaddr, uint16_t &out) const { return false; }
 	virtual bool write_memory(int pid, size_t vaddr, uint16_t value) { return false; }
 
+	// Result of an atomic memory access. See access_memory().
+	enum AccessResult
+	{
+		ACCESS_INVALID = -1, // no page-table entry covers this address
+		ACCESS_OK = 0,		 // served, every page was already resident
+		ACCESS_FAULTED = 1	 // served, but a page fault had to be handled first
+	};
+
+	// Atomic demand-paged access to a uint16 at a virtual byte address.
+	//
+	// This exists because faulting a page in and then reading it were two
+	// separate lock acquisitions, which is unsound in two ways:
+	//   1. Another core can steal the frame in between, so the access fails and
+	//      the instruction retries forever.
+	//   2. A uint16 straddling a page boundary needs TWO pages resident at once.
+	//      With one frame (mem-per-frame == max-overall-mem, as in test cases 2
+	//      and 3) that is impossible, so the retry NEVER succeeds and the core is
+	//      pinned for the rest of the run.
+	//
+	// The fix is to fault-in and access under a single lock, translating ONE BYTE
+	// AT A TIME. A single byte only ever needs one frame, so forward progress is
+	// guaranteed no matter how small physical memory is.
+	virtual int access_memory(int pid, size_t vaddr, uint16_t &value, bool is_write)
+	{
+		return ACCESS_INVALID;
+	}
+
 	// Bytes of main memory each process currently occupies, for every process
 	// that holds an allocation. Returned in ONE pass under ONE lock: the
 	// reporting commands must never poll the allocator per page, or they starve

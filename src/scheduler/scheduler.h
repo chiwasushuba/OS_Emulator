@@ -1,6 +1,7 @@
 #pragma once
 #include <queue>
 #include <vector>
+#include <mutex>
 #include <unordered_map>
 #include "os_process.h"
 #include "cpu.h"
@@ -11,6 +12,14 @@ protected:
     CPUManager& cpu_manager;
     ProcessManager& process_manager;
     IMemoryAllocator& memory_allocator;
+
+    // add_process() runs on the CLI thread (screen -s / screen -c) while tick()
+    // runs on the kernel clock thread. Both touch ready_queue and
+    // process_memory_ptr, which are plain std::queue / std::unordered_map -
+    // concurrent push and pop on those is undefined behaviour, and it showed up
+    // as intermittent corruption when a process was created by hand while the
+    // scheduler was running.
+    mutable std::mutex sched_mutex;
 public:
     Scheduler(CPUManager& cpu_m, ProcessManager& proc_m, IMemoryAllocator& mem_alloc)
         : cpu_manager(cpu_m), process_manager(proc_m), memory_allocator(mem_alloc) {}

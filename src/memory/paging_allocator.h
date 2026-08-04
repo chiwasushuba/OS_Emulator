@@ -5,6 +5,7 @@
 #include <deque>
 #include <map>
 #include <mutex>
+#include <atomic>
 #include <chrono>
 #include <utility>
 #include <functional>
@@ -42,6 +43,9 @@ public:
 	// See IMemoryAllocator for the contract.
 	bool read_memory(int pid, size_t vaddr, uint16_t &out) const override;
 	bool write_memory(int pid, size_t vaddr, uint16_t value) override;
+
+	// Atomic fault-in + access. See IMemoryAllocator::access_memory().
+	int access_memory(int pid, size_t vaddr, uint16_t &value, bool is_write) override;
 
 	// Hex dump of one physical frame - for demoing what a frame actually holds.
 	std::string dump_frame(size_t frame) const;
@@ -119,6 +123,12 @@ private:
 	// Zeroes a frame so an incoming page never sees the previous tenant's bytes.
 	void clear_frame_locked(int frame);
 
+	// Brings one page into a frame, evicting a FIFO victim if needed. Returns the
+	// frame index, or -1 if the page has no page-table entry / memory has no
+	// frames at all. Caller must already hold mem_mutex. This is the page-fault
+	// path shared by ensure_page_resident() and access_memory().
+	int fault_in_locked(std::vector<PageTableEntry> &table, int pid, size_t page, bool for_write);
+
 	// Per-process page table: pid -> one PageTableEntry per page the
 	// process owns. Flat, single-level (see Q8 in the writeup).
 	std::unordered_map<int, std::vector<PageTableEntry>> pageTables;
@@ -128,8 +138,10 @@ private:
 	// always takes the oldest-resident page first.
 	std::deque<int> frameFifo;
 
-	size_t numPagedIn = 0;
-	size_t numPagedOut = 0;
+	// Atomic: the cores bump these while vmstat/process-smi read them from the
+	// CLI thread without taking mem_mutex.
+	std::atomic<size_t> numPagedIn{0};
+	std::atomic<size_t> numPagedOut{0};
 
 	mutable std::mutex mem_mutex;
 
