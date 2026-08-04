@@ -81,7 +81,8 @@ std::vector<ProcessSnapshot> ProcessManager::get_active_processes() const {
                 process->process_name,
                 process->core_id,
                 process->current_instruction,
-                process->total_instructions()
+                process->total_instructions(),
+                process->mem_size
             });
         }
     }

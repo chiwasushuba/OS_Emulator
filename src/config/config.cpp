@@ -148,8 +148,17 @@ void loadConfig(const std::string& filename, Config& config) {
     const std::string resolved_path = resolve_config_path(filename);
     std::ifstream file(resolved_path.empty() ? filename : resolved_path);
 
+    // Anchor every generated file to config.txt's own directory.
+    if (!resolved_path.empty()) {
+        size_t slash = resolved_path.find_last_of("/\\");
+        config.base_dir = (slash == std::string::npos)
+                              ? std::string()
+                              : resolved_path.substr(0, slash + 1);
+    }
+
     if (!file.is_open()) {
         std::cerr << "Failed to open config file '" << filename << "', using default...\n";
+        validateConfig(config);
         return;
     }
 
@@ -196,7 +205,11 @@ void loadConfig(const std::string& filename, Config& config) {
             else if (key == "max-ins") {
                 config.max_ins = std::stoull(value);
             }
-            else if (key == "delays-per-exec") {
+            // The spec's parameter table writes "delays-per-exec" but the handed-out
+            // test-case configs write "delay-per-exec". The quiz forbids recompiling
+            // between questions, so both spellings must be accepted - otherwise the
+            // value silently falls back to the default and the delay test is unfixable.
+            else if (key == "delays-per-exec" || key == "delay-per-exec") {
                 config.delays_per_exec = std::stoull(value);
             }
             else if (key == "max-overall-mem") {

@@ -1,4 +1,5 @@
 #include "scheduler.h"
+#include <iostream>
 
 FCFSScheduler::FCFSScheduler(CPUManager& cpu_m, ProcessManager& proc_m, IMemoryAllocator& mem_alloc)
     : Scheduler(cpu_m, proc_m, mem_alloc) {}
@@ -7,8 +8,14 @@ void FCFSScheduler::add_process(Process* process) {
     if (process == nullptr) {
         return;
     }
-    if (process->mem_size == 0 || process->mem_size > memory_allocator.get_maximum_size()) {
-        process->terminate_with_violation("0x0", get_current_time());
+    // A process whose address space exceeds physical memory is still admissible -
+    // that is what demand paging is for. Only a sizeless process is rejected;
+    // FCFS is non-preemptive and never skips the queue head, so an admitted-but-
+    // unrunnable process at the front would deadlock everything behind it.
+    if (process->mem_size == 0) {
+        std::cout << "Process " << process->process_name
+                  << " has no memory allocation. Process not admitted.\n";
+        process->state = ProcessState::TERMINATED;
         return;
     }
     process->state = ProcessState::READY;

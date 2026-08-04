@@ -6,6 +6,7 @@
 #include <memory>
 #include <functional>
 #include <mutex>
+#include <algorithm>
 
 class Process;
 
@@ -43,6 +44,7 @@ struct ProcessSnapshot
 	int core_id;
 	int current_instruction;
 	size_t total_instructions;
+	size_t mem_size;
 };
 
 enum class LogEventType
@@ -136,57 +138,94 @@ public: // public for easier manipulation by the scheduler
 
 	size_t mem_size = 0;
 	size_t page_size = 0;
-	std::unordered_map<int, bool> resident_pages;
+	// NOTE: the process deliberately keeps NO residency cache of its own. The
+	// memory manager owns the frame table and is the only thing that knows when
+	// a page has been evicted; a local copy would go stale the moment another
+	// process stole the frame, and reads would silently miss the page-in.
 	std::function<bool(size_t, bool)> page_fault_handler;
 
-	// Virtual memory for this process
-	std::vector<uint16_t> memory_space;
+	// A process owns an ADDRESS SPACE, not bytes. Its data physically lives in
+	// the memory manager's frames (or in the backing store while paged out), and
+	// is reached through these handlers, which translate a virtual address via
+	// this process's page table. mem_size below is the size of that address
+	// space - the bound that decides what is an access violation.
+	std::function<bool(size_t, uint16_t &)> read_memory_handler;
+	std::function<bool(size_t, uint16_t)> write_memory_handler;
 
 	// Access violation state
 	bool access_violation = false;
 	std::string violation_address = "";
 	std::string violation_timestamp = "";
 
-	// Symbol table limit
-	static constexpr size_t MAX_VARIABLES = 32;
+	// Symbol table limit: the segment is a fixed 64 bytes and a uint16 costs
+	// 2 bytes, so 64 / 2 = 32 variables.
+	static constexpr size_t SYMBOL_TABLE_BYTES = 64;
+	static constexpr size_t MAX_VARIABLES = SYMBOL_TABLE_BYTES / sizeof(uint16_t);
 
-	// Initialize the memory space based on mem_size
-	void init_memory()
+	void set_memory_handlers(std::function<bool(size_t, uint16_t &)> reader,
+							 std::function<bool(size_t, uint16_t)> writer)
 	{
-		if (mem_size > 0)
-		{
-			size_t word_count = (mem_size + sizeof(uint16_t) - 1) / sizeof(uint16_t);
-			memory_space.assign(word_count, 0);
-		}
-		else
-		{
-			memory_space.clear();
-		}
+		read_memory_handler = std::move(reader);
+		write_memory_handler = std::move(writer);
+	}
+
+	// Read/write a uint16 at a virtual byte address. Both return false if the
+	// page is not resident, which the caller turns into a page fault + retry.
+	bool read_memory(size_t address, uint16_t &out) const
+	{
+		return read_memory_handler ? read_memory_handler(address, out) : false;
+	}
+
+	bool write_memory(size_t address, uint16_t value)
+	{
+		return write_memory_handler ? write_memory_handler(address, value) : false;
 	}
 
 	bool execute_next_instruction(LogEntry &log); // should, LogEntry& log call logging
 	void set_page_size(size_t page_size_bytes) { page_size = page_size_bytes; }
 	size_t get_page_size() const { return page_size; }
-	void mark_page_resident(size_t page_number, bool resident) { resident_pages[static_cast<int>(page_number)] = resident; }
-	bool is_page_resident(size_t page_number) const
-	{
-		auto it = resident_pages.find(static_cast<int>(page_number));
-		return it != resident_pages.end() && it->second;
-	}
 	void set_page_fault_handler(std::function<bool(size_t, bool)> handler)
 	{
 		page_fault_handler = std::move(handler);
 	}
+	// Asks the memory manager for the page. It returns immediately if the page
+	// already holds a frame; otherwise this IS the page fault - it picks a
+	// victim, evicts it to the backing store, and loads this page in.
 	bool ensure_page_resident(size_t page_number, bool for_write = false)
 	{
-		if (page_fault_handler)
-		{
-			bool ok = page_fault_handler(page_number, for_write);
-			mark_page_resident(page_number, ok);
-			return ok;
-		}
-		return false;
+		return page_fault_handler ? page_fault_handler(page_number, for_write) : false;
 	}
+
+	// Faults in every page spanned by [address, address + length). An unaligned
+	// uint16 can straddle a page boundary, so one call may touch two pages.
+	// Returns false if any of them could not be brought in - the caller must
+	// then retry the whole instruction on a later tick, per the spec's
+	// "page fault handling continuously occurs until a valid page has been
+	// returned, before an instruction is performed."
+	bool ensure_bytes_resident(size_t address, size_t length, bool for_write)
+	{
+		if (page_size == 0 || !page_fault_handler)
+			return true; // paging not wired up (e.g. a unit-test process)
+
+		size_t first_page = address / page_size;
+		size_t last_page = (address + length - 1) / page_size;
+		for (size_t page = first_page; page <= last_page; ++page)
+		{
+			if (!ensure_page_resident(page, for_write))
+				return false;
+		}
+		return true;
+	}
+
+	// The symbol table segment lives at the base of the process's address space.
+	// Per the spec, a variable declaration cannot execute while that segment is
+	// swapped out - it page-faults just like a READ/WRITE does.
+	bool ensure_symbol_table_resident()
+	{
+		return ensure_bytes_resident(0, SYMBOL_TABLE_BYTES, true);
+	}
+
+	bool symbol_table_full() const { return symbol_table.size() >= MAX_VARIABLES; }
 
 	void add_instruction(std::unique_ptr<Instruction> new_instruction);
 
@@ -197,6 +236,14 @@ public: // public for easier manipulation by the scheduler
 
 	bool declare_variable(const std::string &name, uint16_t value)
 	{
+		// Re-declaring an existing variable reuses its slot, so it stays legal
+		// even once the 32-variable symbol table is full.
+		auto it = symbol_table.find(name);
+		if (it != symbol_table.end())
+		{
+			it->second = value;
+			return true;
+		}
 		if (symbol_table.size() >= MAX_VARIABLES)
 		{
 			return false;
@@ -394,3 +441,5 @@ public:
 // Helper funtions
 void initialize_entry(Process &context, LogEntry &log);
 std::string get_current_time();
+// HH:MM:SS only - the format the spec's access-violation message asks for.
+std::string get_current_time_hms();

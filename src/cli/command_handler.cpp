@@ -7,6 +7,33 @@
 
 static bool is_power_of_2(uint64_t n) { return n > 0 && (n & (n - 1)) == 0; }
 
+// Parses a process memory size and validates it against the spec's range:
+// [2^6, 2^16] bytes AND a power of 2. Returns false (caller prints
+// "invalid memory allocation") on anything else.
+//
+// The whole token must be consumed. std::stoull alone stops at the first
+// character it can't use, so "256.5" and "256abc" would otherwise come back as
+// a perfectly valid 256. It also accepts a leading '-' and wraps it around to a
+// huge unsigned value, so negatives are rejected explicitly rather than being
+// caught by the range check by luck.
+static bool parse_memory_size(const std::string& token, uint64_t& out) {
+    if (token.empty() || token[0] == '-' || token[0] == '+') return false;
+
+    size_t consumed = 0;
+    uint64_t value = 0;
+    try {
+        value = std::stoull(token, &consumed);
+    } catch (...) {
+        return false; // not a number at all, or too big for uint64
+    }
+    if (consumed != token.size()) return false;          // trailing junk
+    if (value < 64 || value > 65536) return false;       // outside [2^6, 2^16]
+    if (!is_power_of_2(value)) return false;
+
+    out = value;
+    return true;
+}
+
 
 std::vector<std::string> CommandHandler::tokenize(const std::string& input) {
     std::vector<std::string> tokens;
@@ -45,8 +72,13 @@ bool CommandHandler::isValidCommand(const std::vector<std::string>& tokens) {
     if (cmd == "initialize")       return tokens.size() == 1;
     if (cmd == "exit")             return tokens.size() == 1;
     if (cmd == "clear")            return tokens.size() == 1;
+    // "scheduler-test" is the name the spec's parameter table and the handed-out
+    // test cases use for what MO1 called "scheduler-start". Accept both.
     if (cmd == "scheduler-start")  return tokens.size() == 1;
+    if (cmd == "scheduler-test")   return tokens.size() == 1;
     if (cmd == "scheduler-stop")   return tokens.size() == 1;
+    // The test cases write "screen-ls" as shorthand for "screen -ls".
+    if (cmd == "screen-ls")        return tokens.size() == 1;
     if (cmd == "report-util")      return tokens.size() == 1;
     if (cmd == "process-smi")      return tokens.size() == 1;
     if (cmd == "vmstat")           return tokens.size() == 1;
@@ -72,6 +104,7 @@ void CommandHandler::help() {
               << "  exit                 - Exit the emulator\n"
               << "  clear                - Clear the console screen\n"
               << "  scheduler-start      - Start generating background processes\n"
+              << "  scheduler-test       - Alias for scheduler-start\n"
               << "  scheduler-stop       - Stop generating background processes\n"
               << "  report-util          - Report current CPU utilization\n"
               << "  process-smi          - Report CPU and memory usage\n"
@@ -114,9 +147,13 @@ bool CommandHandler::handleCommand(const std::string& input) {
     if (cmd == "initialize") {
         packet.type = CommandType::INITIALIZE;
     } 
-    else if (cmd == "scheduler-start") {
+    else if (cmd == "scheduler-start" || cmd == "scheduler-test") {
         packet.type = CommandType::START_SCHEDULER;
-    } 
+    }
+    else if (cmd == "screen-ls") {
+        packet.type = CommandType::SCREEN;
+        packet.screen_action = ScreenAction::LIST;
+    }
     else if (cmd == "scheduler-stop") {
         packet.type = CommandType::STOP_SCHEDULER;
     } 
@@ -142,14 +179,7 @@ bool CommandHandler::handleCommand(const std::string& input) {
                 packet.payload = tokens[2]; // screen name
 
                 if (tokens.size() >= 4) {
-                    try {
-                        packet.mem_size = std::stoull(tokens[3]);
-                    } catch (...) {
-                        std::cout << "invalid memory allocation\n";
-                        return true;
-                    }
-                    if (packet.mem_size < 64 || packet.mem_size > 65536
-                        || !is_power_of_2(packet.mem_size)) {
+                    if (!parse_memory_size(tokens[3], packet.mem_size)) {
                         std::cout << "invalid memory allocation\n";
                         return true;
                     }
@@ -162,15 +192,7 @@ bool CommandHandler::handleCommand(const std::string& input) {
                 packet.payload = tokens[2]; // screen name
 
                 if (tokens.size() == 5) {
-                    // Parse mem_size
-                    try {
-                        packet.mem_size = std::stoull(tokens[3]);
-                    } catch (...) {
-                        std::cout << "invalid memory allocation\n";
-                        return true;
-                    }
-                    if (packet.mem_size < 64 || packet.mem_size > 65536
-                        || !is_power_of_2(packet.mem_size)) {
+                    if (!parse_memory_size(tokens[3], packet.mem_size)) {
                         std::cout << "invalid memory allocation\n";
                         return true;
                     }

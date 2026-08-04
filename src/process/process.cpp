@@ -22,6 +22,10 @@ bool Process::execute_next_instruction(LogEntry& log) {
     // Check if instruction caused an access violation
     if (access_violation) {
         state = ProcessState::TERMINATED;
+        // CPUManager only forwards a log when the event type is set, so without
+        // this the violation never reaches the process log and `process-smi`
+        // inside the screen shows nothing about why the process died.
+        log.event_type = LogEventType::LOG;
         return should_log;  // still log the violation message
     }
 

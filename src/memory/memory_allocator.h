@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <map>
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
@@ -47,6 +48,20 @@ public:
 	virtual bool is_page_resident(int pid, size_t page_number) const { return true; }
 	virtual bool ensure_page_resident(int pid, size_t page_number, bool for_write = false) { return true; }
 	virtual bool mark_page_dirty(int pid, size_t page_number) { return true; }
+
+	// Main-memory access. vaddr is a process-VIRTUAL byte address; the allocator
+	// translates it through that process's page table to a physical offset in the
+	// frame that currently backs the page. Returns false when the page is not
+	// resident - the caller must fault it in (ensure_page_resident) and retry,
+	// which is what makes the pager demand-driven.
+	virtual bool read_memory(int pid, size_t vaddr, uint16_t &out) const { return false; }
+	virtual bool write_memory(int pid, size_t vaddr, uint16_t value) { return false; }
+
+	// Bytes of main memory each process currently occupies, for every process
+	// that holds an allocation. Returned in ONE pass under ONE lock: the
+	// reporting commands must never poll the allocator per page, or they starve
+	// the page-fault path on every core while they run.
+	virtual std::map<int, size_t> get_resident_bytes_by_pid() const { return {}; }
 };
 
 // First-fit flat memory allocator: scans memory from address 0 upward and

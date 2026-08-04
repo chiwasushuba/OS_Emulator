@@ -17,6 +17,14 @@ struct Config {
     uint64_t mem_per_frame = 64;       // bytes per frame (reserved for paging allocators)
     uint64_t min_mem_per_proc = 4096;
     uint64_t max_mem_per_proc = 4096;
+
+    // Directory that config.txt was actually found in, with a trailing
+    // separator (empty = current working directory). Every file the emulator
+    // produces - csopesy-backing-store.txt, csopesy_report.txt - is anchored
+    // here so they land next to config.txt no matter which directory the
+    // executable was launched from. Hard-coding "../../" put the backing store
+    // outside the project entirely when the exe was run from the project root.
+    std::string base_dir;
 };
 
 void validateConfig(Config& config);

@@ -54,8 +54,13 @@ private:
 public:
     ProcessGenerator(ProcessManager& pm, Scheduler& sched, const Config& cfg, IMemoryAllocator& alloc);
 
-    // Creates a single dummy process with randomized PrintInstruction count
-    Process* generate_one_process(std::string name);
+    // Creates a single dummy process with a randomized instruction mix.
+    // mem_size_override != 0 pins the process's memory size (screen -s <name> <size>);
+    // 0 rolls a random power of 2 in [min-mem-per-proc, max-mem-per-proc].
+    // The size MUST be known before instructions are generated - READ/WRITE
+    // addresses are drawn from inside the process's own address space, so
+    // resizing afterwards would turn every generated access into a violation.
+    Process* generate_one_process(std::string name, size_t mem_size_override = 0);
 
     // Called by the kernel once per CPU cycle
     void tick();

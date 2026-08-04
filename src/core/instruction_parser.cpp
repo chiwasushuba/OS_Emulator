@@ -14,6 +14,12 @@ Operand parse_operand(const std::string& s) {
             uint16_t clamped = (val > 65535) ? 65535 : static_cast<uint16_t>(val);
             return Operand{false, "", clamped};
         }
+    } catch (const std::out_of_range&) {
+        // A literal too big for unsigned long is still a literal - clamp it
+        // rather than falling through and treating "99999999999999999999" as a
+        // variable name (which would silently resolve to 0).
+        if (!s.empty() && std::isdigit(static_cast<unsigned char>(s[0])))
+            return Operand{false, "", 65535};
     } catch (...) {}
     // Treat as variable name
     return Operand{true, s, 0};
@@ -74,8 +80,20 @@ std::vector<std::unique_ptr<Instruction>> parse_instructions(const std::string& 
             if (!is_valid_identifier(var)) {
                 return {};
             }
+            // "uint16 variables are clamped between (0, max(uint16))" - a plain
+            // static_cast would wrap instead (70000 -> 4464), silently storing a
+            // value the user never asked for. Out-of-range also clamps rather
+            // than rejecting the whole instruction list.
             uint16_t val = 0;
-            try { val = static_cast<uint16_t>(std::stoul(val_s)); } catch (...) { std::cerr << "Error: Malformed instruction '" << inst_str << "'\n"; return {}; }
+            try {
+                unsigned long raw = std::stoul(val_s);
+                val = (raw > 65535UL) ? static_cast<uint16_t>(65535) : static_cast<uint16_t>(raw);
+            } catch (const std::out_of_range&) {
+                val = 65535;
+            } catch (...) {
+                std::cerr << "Error: Malformed instruction '" << inst_str << "'\n";
+                return {};
+            }
             result.push_back(std::make_unique<DeclareInstruction>(var, val));
         }
         else if (opcode == "ADD") {

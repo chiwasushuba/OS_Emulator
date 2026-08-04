@@ -1,15 +1,5 @@
 #include "scheduler.h"
-#include <fstream>
-
-// Lightweight debug trace - writes to scheduler_debug.log (relative to
-// build/src, so ../../scheduler_debug.log) every tick. Remove once you're
-// done diagnosing; this is not part of the required deliverable.
-static void debug_log(const std::string& line) {
-    std::ofstream f("../../scheduler_debug.log", std::ios::app);
-    if (f.is_open()) {
-        f << line << "\n";
-    }
-}
+#include <iostream>
 
 RoundRobinScheduler::RoundRobinScheduler(CPUManager& cpu_m, ProcessManager& proc_m, IMemoryAllocator& mem_alloc, uint64_t quantum)
     : Scheduler(cpu_m, proc_m, mem_alloc), quantum(quantum > 0 ? quantum : 1) {
@@ -21,8 +11,12 @@ void RoundRobinScheduler::add_process(Process* process) {
     if (process == nullptr) {
         return;
     }
-    if (process->mem_size == 0 || process->mem_size > memory_allocator.get_maximum_size()) {
-        process->terminate_with_violation("0x0", get_current_time());
+    // A process whose address space exceeds physical memory is still admissible -
+    // that is what demand paging is for. Only a sizeless process is rejected.
+    if (process->mem_size == 0) {
+        std::cout << "Process " << process->process_name
+                  << " has no memory allocation. Process not admitted.\n";
+        process->state = ProcessState::TERMINATED;
         return;
     }
     process->state = ProcessState::READY;
@@ -46,8 +40,6 @@ void RoundRobinScheduler::tick() {
                 }
                 core.remove_process();
                 core_cycles[i] = 0;
-                debug_log("[" + get_current_time() + "] core " + std::to_string(i) +
-                          " FINISHED pid=" + std::to_string(p->id) + " (" + p->process_name + ")");
             }
         }
 
@@ -65,9 +57,6 @@ void RoundRobinScheduler::tick() {
                 p->state = ProcessState::READY;
                 ready_queue.push(p);
                 core_cycles[i] = 0;
-                debug_log("[" + get_current_time() + "] core " + std::to_string(i) +
-                          " PREEMPT pid=" + std::to_string(p->id) + " (" + p->process_name +
-                          ") ready_queue_size=" + std::to_string(ready_queue.size()));
 
                 continue;
             }
@@ -97,8 +86,6 @@ void RoundRobinScheduler::tick() {
                 if (process_memory_ptr.find(p->id) != process_memory_ptr.end()) {
                     core.assign_process(p);
                     core_cycles[i] = 0; // reset for the new process
-                    debug_log("[" + get_current_time() + "] core " + std::to_string(i) +
-                              " RESUME pid=" + std::to_string(p->id) + " (" + p->process_name + ")");
                     break;
                 }
 
@@ -108,21 +95,13 @@ void RoundRobinScheduler::tick() {
                     process_memory_ptr[p->id] = mem;
                     core.assign_process(p);
                     core_cycles[i] = 0;
-                    debug_log("[" + get_current_time() + "] core " + std::to_string(i) +
-                              " ADMIT pid=" + std::to_string(p->id) + " (" + p->process_name + ")");
                     break;
                 } else {
                     // Memory is full and there's no backing store -> send the
                     // process back to the tail of the ready queue and keep scanning.
                     ready_queue.push(p);
-                    debug_log("[" + get_current_time() + "] core " + std::to_string(i) +
-                              " ADMIT-FAIL pid=" + std::to_string(p->id) + " (" + p->process_name +
-                              ") memory_full, requeued");
                 }
             }
-        } else if (core.is_idle()) {
-            debug_log("[" + get_current_time() + "] core " + std::to_string(i) +
-                      " IDLE ready_queue_size=" + std::to_string(ready_queue.size()));
         }
     }
 }

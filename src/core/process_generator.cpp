@@ -135,7 +135,7 @@ std::unique_ptr<Instruction> create_random_instruction(std::mt19937& rng, const 
     }
 }
 
-Process* ProcessGenerator::generate_one_process(std::string name) {
+Process* ProcessGenerator::generate_one_process(std::string name, size_t mem_size_override) {
 
     int pid = process_manager.create_process(name);
     Process* proc = process_manager.get_process(pid);
@@ -148,13 +148,27 @@ Process* ProcessGenerator::generate_one_process(std::string name) {
     proc->set_page_fault_handler([this, pid](size_t page_number, bool for_write) {
         return this->memory_allocator.ensure_page_resident(pid, page_number, for_write);
     });
+    // Process data lives in the allocator's frames; these translate through
+    // this pid's page table to reach it.
+    proc->set_memory_handlers(
+        [this, pid](size_t vaddr, uint16_t& out) {
+            return this->memory_allocator.read_memory(pid, vaddr, out);
+        },
+        [this, pid](size_t vaddr, uint16_t value) {
+            return this->memory_allocator.write_memory(pid, vaddr, value);
+        });
 
-    // Pick a random power-of-2 between min and max
-    int min_exp = static_cast<int>(std::log2(config.min_mem_per_proc));
-    int max_exp = static_cast<int>(std::log2(config.max_mem_per_proc));
-    std::uniform_int_distribution<int> mem_dist(min_exp, max_exp);
-    proc->mem_size = static_cast<size_t>(1) << mem_dist(rng);
-    proc->init_memory();
+    // Fix the memory size BEFORE generating instructions - create_random_instruction
+    // draws READ/WRITE addresses from inside proc->mem_size.
+    if (mem_size_override > 0) {
+        proc->mem_size = mem_size_override;
+    } else {
+        // Pick a random power-of-2 between min and max
+        int min_exp = static_cast<int>(std::log2(config.min_mem_per_proc));
+        int max_exp = static_cast<int>(std::log2(config.max_mem_per_proc));
+        std::uniform_int_distribution<int> mem_dist(min_exp, max_exp);
+        proc->mem_size = static_cast<size_t>(1) << mem_dist(rng);
+    }
 
     // Randomize instruction count between [min_ins, max_ins]
     std::uniform_int_distribution<uint64_t> dist(config.min_ins, config.max_ins);

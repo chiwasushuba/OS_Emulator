@@ -21,6 +21,20 @@ std::string get_current_time() {
     return oss.str();
 }
 
+std::string get_current_time_hms() {
+    using namespace std::chrono;
+
+    auto now = system_clock::now();
+    std::time_t time_now = system_clock::to_time_t(now);
+
+    std::tm local_tm = *std::localtime(&time_now);
+
+    std::ostringstream oss;
+    oss << std::put_time(&local_tm, "%H:%M:%S");
+
+    return oss.str();
+}
+
 // Helper function for generating the entry, be sure to call this before passing the log to execute
 void initialize_entry(Process& context, LogEntry& log) {
     log.core_id = context.core_id;
@@ -97,10 +111,23 @@ bool PrintInstruction::execute(Process& context, LogEntry& log) {
 }
 
 bool DeclareInstruction::execute(Process& context, LogEntry& log) {
+    // "Variable declaration commands cannot execute if the symbol table segment
+    // is not in physical memory. Thus, a page fault also occurs." Retry next tick.
+    if (!context.ensure_symbol_table_resident()) {
+        log.message = "PAGE FAULT: DECLARE (symbol table segment)";
+        return false;
+    }
+
     std::stringstream ss;
-    context.declare_variable(var, value);
     ss << std::right << std::setw(10) << "DECLARE: ";
-    ss << "Declared var " << this->var << " with value " << this->value;
+    if (context.declare_variable(var, value)) {
+        ss << "Declared var " << this->var << " with value " << this->value;
+    } else {
+        // The 64-byte symbol table holds at most 32 uint16 variables; past that
+        // the spec says succeeding declarations are ignored.
+        ss << "Ignored " << this->var << " - symbol table full ("
+           << Process::MAX_VARIABLES << " variables max)";
+    }
     log.message = ss.str();
     return true;
 }
@@ -224,48 +251,46 @@ void SleepInstruction::reset() {
     state = SleepState::AWAKE;
 }
 
+// Renders an address the way the spec's messages do: 0x + uppercase hex.
+static std::string hex_addr(uint32_t address) {
+    std::ostringstream oss;
+    oss << "0x" << std::hex << std::uppercase << address;
+    return oss.str();
+}
+
 bool ReadInstruction::execute(Process& context, LogEntry& log) {
     initialize_entry(context, log);
 
     // Bounds check FIRST. Address translation precedes demand paging: an address
     // outside the process's own space has no page-table entry at all, so asking the
     // pager for it returns false forever and the instruction retries indefinitely
-    // instead of faulting the process. Needs 2 bytes, so address and address+1.
-    if (address % sizeof(uint16_t) != 0 || !context.is_address_valid(address) || !context.is_address_valid(address + sizeof(uint16_t) - 1)) {
-        context.terminate_with_violation("0x" + [&]() {
-            std::ostringstream oss;
-            oss << std::hex << std::uppercase << address;
-            return oss.str();
-        }(), get_current_time());
-        log.message = "ACCESS VIOLATION: READ at 0x" + [&]() {
-            std::ostringstream oss;
-            oss << std::hex << std::uppercase << address;
-            return oss.str();
-        }();
+    // instead of faulting the process. A uint16 needs 2 bytes: address and address+1.
+    if (!context.is_address_valid(address) || !context.is_address_valid(address + 1)) {
+        context.terminate_with_violation(hex_addr(address), get_current_time_hms());
+        log.message = "ACCESS VIOLATION: READ at " + hex_addr(address);
+        log.event_type = LogEventType::LOG;
         return true;
     }
 
-    // Address is genuinely ours, so demand-page it in.
-    size_t page_size = context.get_page_size();
-    if (page_size > 0) {
-        size_t page = (address / page_size);
-        if (!context.is_page_resident(page)) {
-            if (!context.ensure_page_resident(page, false)) {
-                log.message = "PAGE FAULT: READ at page " + std::to_string(page);
-                return false;
-            }
-        }
+    // Address is genuinely ours, so demand-page it in. A uint16 can straddle two
+    // pages when the address is unaligned, so both halves must be resident.
+    if (!context.ensure_bytes_resident(address, 2, false)) {
+        log.message = "PAGE FAULT: READ at " + hex_addr(address);
+        return false;
     }
 
-    // Read from memory (address is byte offset, each slot is 2 bytes)
-    uint16_t val = context.memory_space[address / sizeof(uint16_t)];
+    // Translated load from main memory. A page can be stolen between the fault
+    // above and this call, so a failure here is another fault, not an error.
+    uint16_t val = 0;
+    if (!context.read_memory(address, val)) {
+        log.message = "PAGE FAULT: READ at " + hex_addr(address);
+        return false;
+    }
     context.set_variable(var, val);
 
-    std::ostringstream addr_ss;
-    addr_ss << "0x" << std::hex << std::uppercase << address;
     std::stringstream ss;
     ss << std::right << std::setw(10) << "READ: ";
-    ss << var << " = " << val << " from " << addr_ss.str();
+    ss << var << " = " << val << " from " << hex_addr(address);
     log.message = ss.str();
     return true;
 }
@@ -274,42 +299,29 @@ bool WriteInstruction::execute(Process& context, LogEntry& log) {
     initialize_entry(context, log);
 
     // Bounds check FIRST - see the note in ReadInstruction::execute.
-    if (address % sizeof(uint16_t) != 0 || !context.is_address_valid(address) || !context.is_address_valid(address + sizeof(uint16_t) - 1)) {
-        context.terminate_with_violation("0x" + [&]() {
-            std::ostringstream oss;
-            oss << std::hex << std::uppercase << address;
-            return oss.str();
-        }(), get_current_time());
-        log.message = "ACCESS VIOLATION: WRITE at 0x" + [&]() {
-            std::ostringstream oss;
-            oss << std::hex << std::uppercase << address;
-            return oss.str();
-        }();
+    if (!context.is_address_valid(address) || !context.is_address_valid(address + 1)) {
+        context.terminate_with_violation(hex_addr(address), get_current_time_hms());
+        log.message = "ACCESS VIOLATION: WRITE at " + hex_addr(address);
+        log.event_type = LogEventType::LOG;
         return true;
     }
 
-    // Address is genuinely ours, so demand-page it in.
-    size_t page_size = context.get_page_size();
-    if (page_size > 0) {
-        size_t page = (address / page_size);
-        if (!context.is_page_resident(page)) {
-            if (!context.ensure_page_resident(page, true)) {
-                log.message = "PAGE FAULT: WRITE at page " + std::to_string(page);
-                return false;
-            }
-        }
+    if (!context.ensure_bytes_resident(address, 2, true)) {
+        log.message = "PAGE FAULT: WRITE at " + hex_addr(address);
+        return false;
     }
 
     // Resolve and clamp value to uint16 range (resolve_operand already returns uint16_t)
     uint16_t resolved = resolve_operand(context, value);
 
-    context.memory_space[address / sizeof(uint16_t)] = resolved;
+    if (!context.write_memory(address, resolved)) {
+        log.message = "PAGE FAULT: WRITE at " + hex_addr(address);
+        return false;
+    }
 
-    std::ostringstream addr_ss;
-    addr_ss << "0x" << std::hex << std::uppercase << address;
     std::stringstream ss;
     ss << std::right << std::setw(10) << "WRITE: ";
-    ss << resolved << " to " << addr_ss.str();
+    ss << resolved << " to " << hex_addr(address);
     log.message = ss.str();
     return true;
 }

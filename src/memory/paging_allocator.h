@@ -3,7 +3,12 @@
 #include <vector>
 #include <unordered_map>
 #include <deque>
+#include <map>
 #include <mutex>
+#include <chrono>
+#include <utility>
+#include <functional>
+#include <cstdint>
 
 // A single Page Table Entry: which physical frame (if any) currently holds
 // this page. If the page isn't resident, it has been written to the backing
@@ -28,8 +33,24 @@ struct PageTableEntry
 class PagingAllocator : public IMemoryAllocator
 {
 public:
-	PagingAllocator(size_t maximumSize, size_t frameSize);
+	// base_dir anchors csopesy-backing-store.txt next to config.txt, so it is
+	// always where the user expects regardless of the launch directory.
+	PagingAllocator(size_t maximumSize, size_t frameSize, const std::string &base_dir = "");
 	~PagingAllocator() override = default;
+
+	// Main memory access, translated through the calling process's page table.
+	// See IMemoryAllocator for the contract.
+	bool read_memory(int pid, size_t vaddr, uint16_t &out) const override;
+	bool write_memory(int pid, size_t vaddr, uint16_t value) override;
+
+	// Hex dump of one physical frame - for demoing what a frame actually holds.
+	std::string dump_frame(size_t frame) const;
+
+	std::map<int, size_t> get_resident_bytes_by_pid() const override;
+
+	// Forces csopesy-backing-store.txt to match memory exactly. Called by the
+	// memory-debug commands so the file is current whenever a human looks at it.
+	void flush_backing_store();
 
 	void *allocate(size_t size, int pid, const std::string &process_name) override;
 	void deallocate(void *ptr) override;
@@ -57,16 +78,46 @@ private:
 	size_t frameSize;
 	size_t numFrames;
 	
-	const std::string backingStoreFile = "../../csopesy-backing-store.txt";
-	void writeToBackingStore(int pid, int page);
-    bool loadFromBackingStore(int pid, int page);
+	const std::string backingStoreFile;
+	// Each takes the frame index because the page's bytes live in that frame:
+	// swapping out reads them from physical memory, swapping in writes them back.
+	void writeToBackingStore(int pid, int page, int frame);
+    bool loadFromBackingStore(int pid, int page, int frame);
     void removeFromBackingStore(int pid, int page);
+
+	// THE BACKING STORE. Authoritative in memory, mirrored to the text file.
+	// It was originally the file itself, but every page fault then cost three
+	// full passes over it (scan to find the page, scan again to drop the line,
+	// rewrite) - with dozens of cores faulting every tick that is megabytes of
+	// parsing per tick, and the emulator ground to a near halt under the stress
+	// config. Keyed by (pid, page); the value is the page's bytes.
+	std::map<std::pair<int, int>, std::vector<uint8_t>> backingStore;
+	bool backingStoreDirty = false;
+	std::chrono::steady_clock::time_point lastBackingStoreFlush{};
+	// Rewrites the text file from backingStore. Throttled unless force is set,
+	// so the file is never more than a fraction of a second behind.
+	void flushBackingStore(bool force);
+
+	// MAIN MEMORY. maximumSize bytes, carved into numFrames frames of frameSize.
+	// This is the only place process data physically lives - a process's bytes
+	// exist here while its page holds a frame, and in the backing-store file
+	// while it does not. Pre-allocated at startup, per the spec ("memory spaces
+	// are pre-allocated and free to use by any processes upon startup").
+	std::vector<uint8_t> physicalMemory;
 
 	// Frame table: for each physical frame, which pid/page currently
 	// occupies it (-1 / -1 if free). This is the physical side of the
 	// page -> frame mapping.
 	std::vector<int> frameOwnerPid;
 	std::vector<int> frameOwnerPage;
+
+	// Virtual -> physical translation. Returns the byte offset into
+	// physicalMemory, or SIZE_MAX when the page has no frame (page fault).
+	// Caller must already hold mem_mutex.
+	size_t translate_locked(int pid, size_t vaddr) const;
+
+	// Zeroes a frame so an incoming page never sees the previous tenant's bytes.
+	void clear_frame_locked(int frame);
 
 	// Per-process page table: pid -> one PageTableEntry per page the
 	// process owns. Flat, single-level (see Q8 in the writeup).
