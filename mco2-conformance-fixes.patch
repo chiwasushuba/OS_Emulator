@@ -1,0 +1,400 @@
+diff --git a/src/cli/command_handler.cpp b/src/cli/command_handler.cpp
+index 94d9cc2..0e15ac4 100644
+--- a/src/cli/command_handler.cpp
++++ b/src/cli/command_handler.cpp
+@@ -15,7 +15,13 @@ std::vector<std::string> CommandHandler::tokenize(const std::string& input) {
+ 
+     for (size_t i = 0; i < input.size(); ++i) {
+         char c = input[i];
+-        if (c == '"') {
++        // The spec escapes the inner quotes of an instruction string, e.g.
++        //   screen -c p 256 "... PRINT(\"Result: \" + varC)"
++        // so \" must survive as a literal quote instead of closing the argument.
++        if (c == '\\' && i + 1 < input.size() && input[i + 1] == '"') {
++            current += '"';
++            ++i;
++        } else if (c == '"') {
+             in_quotes = !in_quotes;
+             // Don't include the quote character itself
+         } else if (c == ' ' && !in_quotes) {
+diff --git a/src/core/core.h b/src/core/core.h
+index 9c8d2e5..254c827 100644
+--- a/src/core/core.h
++++ b/src/core/core.h
+@@ -7,6 +7,7 @@
+ #include "os_process.h"
+ #include "config.h"
+ #include "cpu.h"
++#include "memory_allocator.h"
+ 
+ class ProcessViewer {
+ private:
+@@ -36,6 +37,10 @@ private:
+     ProcessManager& process_manager;
+     Scheduler& scheduler;
+     const Config& config;
++    // Needed so generated processes get a page-fault handler, exactly like the
++    // ones created by screen -s / screen -c. Without it their READ/WRITE
++    // instructions can never resolve a page.
++    IMemoryAllocator& memory_allocator;
+ 
+     std::atomic<bool> generating_{false};
+     int next_process_number = 1;          // sequential counter for p01, p02, ...
+@@ -47,7 +52,7 @@ private:
+     std::string make_process_name(int number) const;
+ 
+ public:
+-    ProcessGenerator(ProcessManager& pm, Scheduler& sched, const Config& cfg);
++    ProcessGenerator(ProcessManager& pm, Scheduler& sched, const Config& cfg, IMemoryAllocator& alloc);
+ 
+     // Creates a single dummy process with randomized PrintInstruction count
+     Process* generate_one_process(std::string name);
+diff --git a/src/core/instruction_parser.cpp b/src/core/instruction_parser.cpp
+index d8f5a66..64a68fb 100644
+--- a/src/core/instruction_parser.cpp
++++ b/src/core/instruction_parser.cpp
+@@ -51,7 +51,19 @@ std::vector<std::unique_ptr<Instruction>> parse_instructions(const std::string&
+ 
+     // Parse each instruction
+     for (const auto& inst_str : parts) {
+-        std::istringstream iss(inst_str);
++        // The spec writes calls as PRINT("..."), with no space before the paren, so
++        // a plain `iss >> opcode` would read `PRINT("Result:` as the opcode. Detach a
++        // '(' that sits inside the leading token so both PRINT(x) and PRINT x parse.
++        std::string normalized = inst_str;
++        size_t paren = normalized.find('(');
++        if (paren != std::string::npos && paren > 0) {
++            size_t first_ws = normalized.find_first_of(" \t");
++            if (first_ws == std::string::npos || paren < first_ws) {
++                normalized.insert(paren, " ");
++            }
++        }
++
++        std::istringstream iss(normalized);
+         std::string opcode;
+         iss >> opcode;
+ 
+@@ -89,6 +101,11 @@ std::vector<std::unique_ptr<Instruction>> parse_instructions(const std::string&
+             std::string rest;
+             std::getline(iss, rest);
+             rest = trim(rest);
++            // Drop the wrapping parens of PRINT(...) before anything else, so the
++            // concatenation scan below sees `"Result: " + varC`, not `("Result: " + varC)`.
++            if (rest.size() >= 2 && rest.front() == '(' && rest.back() == ')') {
++                rest = trim(rest.substr(1, rest.size() - 2));
++            }
+             // Strip surrounding quotes if present
+             if (rest.size() >= 2 && rest.front() == '"' && rest.back() == '"') {
+                 rest = rest.substr(1, rest.size() - 2);
+diff --git a/src/core/process_generator.cpp b/src/core/process_generator.cpp
+index 6782816..d18846f 100644
+--- a/src/core/process_generator.cpp
++++ b/src/core/process_generator.cpp
+@@ -16,8 +16,8 @@
+ // ============================================================================
+ 
+ 
+-ProcessGenerator::ProcessGenerator(ProcessManager& pm, Scheduler& sched, const Config& cfg)
+-    : process_manager(pm), scheduler(sched), config(cfg)
++ProcessGenerator::ProcessGenerator(ProcessManager& pm, Scheduler& sched, const Config& cfg, IMemoryAllocator& alloc)
++    : process_manager(pm), scheduler(sched), config(cfg), memory_allocator(alloc)
+ {}
+ 
+ std::string ProcessGenerator::make_process_name(int number) const {
+@@ -59,15 +59,29 @@ Operand random_operand(std::mt19937& rng)
+ }
+ 
+ // helper function to create a random instruction, used in generate_one_process
+-std::unique_ptr<Instruction> create_random_instruction(std::mt19937& rng, const std::string& process_name, int current_depth) {
+-    int max_type = (current_depth >= 1) ? 5 : 6; 
++std::unique_ptr<Instruction> create_random_instruction(std::mt19937& rng, const std::string& process_name, int current_depth, size_t mem_size) {
++    // MCO2 requires READ/WRITE to appear in scheduler-generated processes - they are
++    // what drives page faults, eviction, and backing-store traffic. Types 7 and 8 are
++    // allowed at nesting depth too, so loops generate repeated memory pressure.
++    int max_type = (current_depth >= 1) ? 5 : 6;
++    if (mem_size >= sizeof(uint16_t)) max_type = 8;
+     std::uniform_int_distribution<int> type_dist(1, max_type);
+     int type = type_dist(rng);
++    // A FOR loop can only appear at the top level; re-roll if depth forbids it.
++    if (type == 6 && current_depth >= 1) type = 1;
+ 
+     std::uniform_int_distribution<int> val_dist(0, 65535); // Max uint16_t limit
+     std::uniform_int_distribution<int> reg_dist(0, 9);
+     std::uniform_int_distribution<int> sleep_dist(1, 5);
+ 
++    // Pick a 2-byte-aligned address inside the process's own address space, so
++    // generated processes exercise paging without tripping an access violation.
++    auto random_address = [&]() -> uint32_t {
++        size_t max_slot = (mem_size / sizeof(uint16_t)) - 1;
++        std::uniform_int_distribution<size_t> addr_dist(0, max_slot);
++        return static_cast<uint32_t>(addr_dist(rng) * sizeof(uint16_t));
++    };
++
+ 
+     switch (type) {
+         case 1: 
+@@ -102,12 +116,21 @@ std::unique_ptr<Instruction> create_random_instruction(std::mt19937& rng, const
+             std::uniform_int_distribution<int> loop_len_dist(1, 3);
+             int loop_len = loop_len_dist(rng);
+             for (int i = 0; i < loop_len; ++i) {
+-                loop_body.push_back(create_random_instruction(rng, process_name, current_depth + 1));
++                loop_body.push_back(create_random_instruction(rng, process_name, current_depth + 1, mem_size));
+             }
+             std::uniform_int_distribution<int> repeat_dist(2, 5);
+             return std::make_unique<ForInstruction>(std::move(loop_body), repeat_dist(rng));
+         }
+-        default: 
++        case 7: //read
++        {
++            return std::make_unique<ReadInstruction>(random_var(rng), random_address());
++        }
++        case 8: //write
++        {
++            return std::make_unique<WriteInstruction>(
++                random_address(), Operand::Imm(static_cast<uint16_t>(val_dist(rng))));
++        }
++        default:
+             return std::make_unique<PrintInstruction>("Hello world from " + process_name + "!");
+     }
+ }
+@@ -120,6 +143,11 @@ Process* ProcessGenerator::generate_one_process(std::string name) {
+     proc->state = ProcessState::READY;
+     proc->current_instruction = 0;
+     proc->set_page_size(config.mem_per_frame);
++    // Same wiring screen -s / screen -c do, so scheduler-generated processes
++    // demand-page through the allocator instead of bypassing it.
++    proc->set_page_fault_handler([this, pid](size_t page_number, bool for_write) {
++        return this->memory_allocator.ensure_page_resident(pid, page_number, for_write);
++    });
+ 
+     // Pick a random power-of-2 between min and max
+     int min_exp = static_cast<int>(std::log2(config.min_mem_per_proc));
+@@ -134,7 +162,7 @@ Process* ProcessGenerator::generate_one_process(std::string name) {
+ 
+     //UPDATED Loop to generate random instructions of any type
+     for (uint64_t i = 0; i < num_instructions; ++i) {
+-        proc->add_instruction(create_random_instruction(this->rng, name, 0));
++        proc->add_instruction(create_random_instruction(this->rng, name, 0, proc->mem_size));
+     }
+ 
+     scheduler.add_process(proc);
+diff --git a/src/cpu/cpu.h b/src/cpu/cpu.h
+index c47a9d3..b51c7ec 100644
+--- a/src/cpu/cpu.h
++++ b/src/cpu/cpu.h
+@@ -30,6 +30,11 @@ public:
+     bool tick(LogEntry& log);
+ 
+     double get_utilization() const;
++
++    // Real accumulated tick counts, for vmstat. active = ticks that actually
++    // retired an instruction; total - active = idle.
++    uint64_t get_total_ticks() const { return total_ticks; }
++    uint64_t get_active_ticks() const { return active_ticks; }
+ };
+ 
+ class CPUManager {
+diff --git a/src/kernel/kernel.cpp b/src/kernel/kernel.cpp
+index 169ba2e..d0d7897 100644
+--- a/src/kernel/kernel.cpp
++++ b/src/kernel/kernel.cpp
+@@ -93,7 +93,7 @@ void Kernel::initialize_subsystems() {
+     }
+ 
+     // Initialize the process generator (controlled by scheduler-start / scheduler-stop)
+-    this->process_generator = std::make_unique<ProcessGenerator>(this->process_manager, *this->scheduler, this->config);
++    this->process_generator = std::make_unique<ProcessGenerator>(this->process_manager, *this->scheduler, this->config, *this->memory_allocator);
+ 
+     std::cout << "---config loaded with the following values---\n";
+     std::cout << "num_cpu:\t\t" << this->config.num_cpu << "\n";
+@@ -305,16 +305,14 @@ void Kernel::show_process_smi() {
+     size_t total = memory_allocator ? memory_allocator->get_maximum_size() : 0;
+     int mem_util = (total > 0) ? static_cast<int>(used * 100 / total) : 0;
+ 
+-    auto to_mib = [](size_t bytes) {
+-        return static_cast<double>(bytes) / (1024.0 * 1024.0);
+-    };
+-
++    // The nvidia-smi mockup uses MiB, but this OS's memory is configured in the
++    // [2^6, 2^16] BYTE range, so MiB renders every figure as "0.00MiB". Report the
++    // spec's native unit instead.
+     std::cout << "-----------------------------------------------\n";
+     std::cout << "| PROCESS-SMI V01.00 Driver Version: 01.00    |\n";
+     std::cout << "-----------------------------------------------\n";
+     std::cout << "CPU-Util: " << cpu_util << "%\n";
+-    std::cout << "Memory Usage: " << std::fixed << std::setprecision(2) << to_mib(used)
+-              << "MiB / " << to_mib(total) << "MiB\n";
++    std::cout << "Memory Usage: " << used << "B / " << total << "B\n";
+     std::cout << "Memory Util: " << mem_util << "%\n\n";
+ 
+     std::cout << "===============================================\n";
+@@ -328,8 +326,7 @@ void Kernel::show_process_smi() {
+         for (int pid : active_pids) {
+             Process* p = process_manager.get_process(pid);
+             if (p) {
+-                std::cout << p->process_name << "    " << std::fixed << std::setprecision(2)
+-                          << to_mib(p->mem_size) << "MiB\n";
++                std::cout << p->process_name << "    " << p->mem_size << "B\n";
+             }
+         }
+     }
+@@ -342,45 +339,46 @@ void Kernel::show_vmstat() {
+     size_t used = memory_allocator ? memory_allocator->get_allocated_size() : 0;
+     size_t free_mem = total - used;
+ 
+-    auto to_kib = [](size_t bytes) {
+-        return bytes / 1024;
+-    };
+-
+-    // Active = memory used by RUNNING processes
+-    // Inactive = memory used by non-RUNNING (READY/WAITING) processes
+-    size_t active = 0, inactive = 0;
+-    for (int pid : process_manager.get_all_pids()) {
+-        Process* p = process_manager.get_process(pid);
+-        if (!p) continue;
+-        if (p->state == ProcessState::RUNNING) {
+-            active += p->mem_size;
+-        } else if (p->state != ProcessState::FINISHED && p->state != ProcessState::TERMINATED) {
+-            inactive += p->mem_size;
++    // Active/inactive are counted in RESIDENT frames, not in each process's virtual
++    // mem_size. Summing mem_size lets "inactive" exceed total memory, which is
++    // incoherent under demand paging - a process can own far more address space
++    // than it currently has frames for. active + inactive == used by construction.
++    size_t active = 0;
++    if (memory_allocator) {
++        for (int pid : process_manager.get_all_pids()) {
++            Process* p = process_manager.get_process(pid);
++            if (!p || p->state != ProcessState::RUNNING) continue;
++            size_t pages = memory_allocator->get_page_count(pid);
++            size_t resident = 0;
++            for (size_t page = 0; page < pages; ++page) {
++                if (memory_allocator->is_page_resident(pid, page)) resident++;
++            }
++            active += resident * memory_allocator->get_page_size();
+         }
+     }
++    size_t inactive = (used > active) ? (used - active) : 0;
+ 
+     size_t paged_in = memory_allocator ? memory_allocator->get_num_paged_in() : 0;
+     size_t paged_out = memory_allocator ? memory_allocator->get_num_paged_out() : 0;
+ 
+-    // CPU ticks
++    // Real accumulated tick counts from the cores. The previous version derived
++    // these from a utilization percentage, which pinned "total cpu ticks" to
++    // 100 x num_cpu forever regardless of how long the OS had been running.
+     uint64_t idle_ticks = 0, active_ticks = 0, total_ticks = 0;
+     if (cpu_manager) {
+-        auto& cores = cpu_manager->get_cores();
+-        for (const auto& core : cores) {
+-            double util = core.get_utilization();
+-            // Approximate from utilization percentage (not perfectly precise but the
+-            // spec only asks for the general shape of vmstat -s output)
+-            total_ticks += 100;
+-            active_ticks += static_cast<uint64_t>(util);
+-            idle_ticks += static_cast<uint64_t>(100 - util);
++        for (const auto& core : cpu_manager->get_cores()) {
++            total_ticks  += core.get_total_ticks();
++            active_ticks += core.get_active_ticks();
+         }
++        idle_ticks = (total_ticks > active_ticks) ? (total_ticks - active_ticks) : 0;
+     }
+ 
+-    std::cout << to_kib(total)      << " K total memory\n";
+-    std::cout << to_kib(used)       << " K used memory\n";
+-    std::cout << to_kib(active)     << " K active memory\n";
+-    std::cout << to_kib(inactive)   << " K inactive memory\n";
+-    std::cout << to_kib(free_mem)   << " K free memory\n";
++    // The spec asks for memory in bytes.
++    std::cout << total      << " bytes total memory\n";
++    std::cout << used       << " bytes used memory\n";
++    std::cout << active     << " bytes active memory\n";
++    std::cout << inactive   << " bytes inactive memory\n";
++    std::cout << free_mem   << " bytes free memory\n";
+     std::cout << idle_ticks  << " idle cpu ticks\n";
+     std::cout << active_ticks << " active cpu ticks\n";
+     std::cout << total_ticks << " total cpu ticks\n";
+diff --git a/src/process/instruction.cpp b/src/process/instruction.cpp
+index 6410fbc..f160f14 100644
+--- a/src/process/instruction.cpp
++++ b/src/process/instruction.cpp
+@@ -227,18 +227,10 @@ void SleepInstruction::reset() {
+ bool ReadInstruction::execute(Process& context, LogEntry& log) {
+     initialize_entry(context, log);
+ 
+-    size_t page_size = context.get_page_size();
+-    if (page_size > 0) {
+-        size_t page = (address / page_size);
+-        if (!context.is_page_resident(page)) {
+-            if (!context.ensure_page_resident(page, false)) {
+-                log.message = "PAGE FAULT: READ at page " + std::to_string(page);
+-                return false;
+-            }
+-        }
+-    }
+-
+-    // Bounds check: address + 1 (need 2 bytes for uint16) must be within mem_size
++    // Bounds check FIRST. Address translation precedes demand paging: an address
++    // outside the process's own space has no page-table entry at all, so asking the
++    // pager for it returns false forever and the instruction retries indefinitely
++    // instead of faulting the process. Needs 2 bytes, so address and address+1.
+     if (address % sizeof(uint16_t) != 0 || !context.is_address_valid(address) || !context.is_address_valid(address + sizeof(uint16_t) - 1)) {
+         context.terminate_with_violation("0x" + [&]() {
+             std::ostringstream oss;
+@@ -253,6 +245,18 @@ bool ReadInstruction::execute(Process& context, LogEntry& log) {
+         return true;
+     }
+ 
++    // Address is genuinely ours, so demand-page it in.
++    size_t page_size = context.get_page_size();
++    if (page_size > 0) {
++        size_t page = (address / page_size);
++        if (!context.is_page_resident(page)) {
++            if (!context.ensure_page_resident(page, false)) {
++                log.message = "PAGE FAULT: READ at page " + std::to_string(page);
++                return false;
++            }
++        }
++    }
++
+     // Read from memory (address is byte offset, each slot is 2 bytes)
+     uint16_t val = context.memory_space[address / sizeof(uint16_t)];
+     context.set_variable(var, val);
+@@ -269,18 +273,7 @@ bool ReadInstruction::execute(Process& context, LogEntry& log) {
+ bool WriteInstruction::execute(Process& context, LogEntry& log) {
+     initialize_entry(context, log);
+ 
+-    size_t page_size = context.get_page_size();
+-    if (page_size > 0) {
+-        size_t page = (address / page_size);
+-        if (!context.is_page_resident(page)) {
+-            if (!context.ensure_page_resident(page, true)) {
+-                log.message = "PAGE FAULT: WRITE at page " + std::to_string(page);
+-                return false;
+-            }
+-        }
+-    }
+-
+-    // Bounds check
++    // Bounds check FIRST - see the note in ReadInstruction::execute.
+     if (address % sizeof(uint16_t) != 0 || !context.is_address_valid(address) || !context.is_address_valid(address + sizeof(uint16_t) - 1)) {
+         context.terminate_with_violation("0x" + [&]() {
+             std::ostringstream oss;
+@@ -295,6 +288,18 @@ bool WriteInstruction::execute(Process& context, LogEntry& log) {
+         return true;
+     }
+ 
++    // Address is genuinely ours, so demand-page it in.
++    size_t page_size = context.get_page_size();
++    if (page_size > 0) {
++        size_t page = (address / page_size);
++        if (!context.is_page_resident(page)) {
++            if (!context.ensure_page_resident(page, true)) {
++                log.message = "PAGE FAULT: WRITE at page " + std::to_string(page);
++                return false;
++            }
++        }
++    }
++
+     // Resolve and clamp value to uint16 range (resolve_operand already returns uint16_t)
+     uint16_t resolved = resolve_operand(context, value);
+ 

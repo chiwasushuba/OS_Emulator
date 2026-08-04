@@ -34,18 +34,8 @@ min_mem_per_proc:	256
 max_mem_per_proc:	256
 
 
-root:\> Invalid command. Please try again.
-
-root:\> CPU utilization: 0%
-Cores used: 0
-Cores available: 1
-Running processes:
-None
-
-Finished processes:
-None
-------------------------------------------
-
-root:\> Process "faulty_process" not found.
-
+root:\> 
+root:\faulty_process:1\> Invalid input! use "process-smi" or "exit"
+root:\faulty_process:1\> Invalid input! use "process-smi" or "exit"
+root:\faulty_process:1\> 
 root:\> 

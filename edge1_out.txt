@@ -18,27 +18,8 @@ Santos, Francine Hannah
 Last updated: 06-27-2026
 -------------------------------------------------------------
 
-root:\> Initializing system subsystems...
-
----config loaded with the following values---
-num_cpu:		2
-scheduler:		rr
-quantum_cycles:		4
-batch_process_freq:	1
-min_ins:		100
-max_ins:		100
-delays_per_exec:	0
-max_overall_mem:	128
-mem_per_frame:		16
-min_mem_per_proc:	4096
-max_mem_per_proc:	4096
-
-
-root:\> Process proc1 shut down due to memory access violation error that occurred at 08/02/2026 07:25:19PM. 0x0 invalid.
+root:\> Invalid command. Please try again.
 
 root:\> 
 STDERR:
-ERROR: mem-per-frame must be a power of 2 between 64 and 65536; using default instead...
 ERROR: min-mem-per-proc must be a power of 2 between 64 and 65536, and <= max_overall_mem; using default...
-ERROR: max-mem-per-proc must be a power of 2 between 64 and 65536, and <= max_overall_mem; using default...
-

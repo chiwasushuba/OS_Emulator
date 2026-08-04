@@ -234,7 +234,9 @@ void Kernel::execute_screen_subsystem(const CommandPacket& packet) {
                     break;
                 }
                 proc->process_name = payload;
-                proc->mem_size = packet.mem_size;
+                // mem_size == 0 means the user omitted the size (the spec's own
+                // screen -c samples do); fall back to the configured maximum.
+                proc->mem_size = (packet.mem_size > 0) ? packet.mem_size : config.max_mem_per_proc;
                 proc->set_page_size(memory_allocator ? memory_allocator->get_page_size() : 0);
                 proc->set_page_fault_handler([this, pid](size_t page_number, bool for_write) {
                     return this->memory_allocator ? this->memory_allocator->ensure_page_resident(pid, page_number, for_write) : false;

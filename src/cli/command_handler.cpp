@@ -56,7 +56,10 @@ bool CommandHandler::isValidCommand(const std::vector<std::string>& tokens) {
         if (tokens.size() == 2 && tokens[1] == "-ls") return true;
         if (tokens.size() >= 3 && tokens[1] == "-s")  return true;  // 3 or 4 tokens
         if (tokens.size() == 3 && tokens[1] == "-r")   return true;
-        if (tokens.size() == 5 && tokens[1] == "-c")   return true;  // name + size + instructions
+        // 5 = name + size + instructions (the documented syntax); 4 = name +
+        // instructions, which is how BOTH of the spec's own screen -c examples are
+        // written. Accept either rather than rejecting a verbatim sample command.
+        if ((tokens.size() == 4 || tokens.size() == 5) && tokens[1] == "-c") return true;
         return false;
     }
 
@@ -154,26 +157,28 @@ bool CommandHandler::handleCommand(const std::string& input) {
             } else if (tokens[1] == "-r" && tokens.size() > 2) {
                 packet.screen_action = ScreenAction::READ;
                 packet.payload = tokens[2]; // screen name
-            } else if (tokens[1] == "-c" && tokens.size() == 5) {
+            } else if (tokens[1] == "-c" && (tokens.size() == 4 || tokens.size() == 5)) {
                 packet.screen_action = ScreenAction::CREATE_CUSTOM;
                 packet.payload = tokens[2]; // screen name
 
-                // Parse mem_size
-                try {
-                    packet.mem_size = std::stoull(tokens[3]);
-                } catch (...) {
-                    std::cout << "invalid memory allocation\n";
-                    return true;
-                }
-                if (packet.mem_size < 64 || packet.mem_size > 65536
-                    || !is_power_of_2(packet.mem_size)) {
-                    std::cout << "invalid memory allocation\n";
-                    return true;
-                }
-
-                // Instructions string (already unquoted by tokenizer)
-                if (tokens.size() >= 5) {
+                if (tokens.size() == 5) {
+                    // Parse mem_size
+                    try {
+                        packet.mem_size = std::stoull(tokens[3]);
+                    } catch (...) {
+                        std::cout << "invalid memory allocation\n";
+                        return true;
+                    }
+                    if (packet.mem_size < 64 || packet.mem_size > 65536
+                        || !is_power_of_2(packet.mem_size)) {
+                        std::cout << "invalid memory allocation\n";
+                        return true;
+                    }
                     packet.raw_instructions = tokens[4];
+                } else {
+                    // Size omitted - leave mem_size at 0 so the kernel applies the
+                    // configured default, same as `screen -s <name>` does.
+                    packet.raw_instructions = tokens[3];
                 }
             }
         }

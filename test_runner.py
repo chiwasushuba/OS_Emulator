@@ -1,6 +1,11 @@
 import subprocess
 import time
 import sys
+import os
+
+# Windows CreateProcess will not accept a forward-slash relative path even when
+# it exists, so normalize to an absolute native path before launching.
+EXE = os.path.abspath(os.path.join('build', 'src', 'os_emulator.exe'))
 
 def write_config(config_text):
     with open('config.txt', 'w') as f:
@@ -11,7 +16,7 @@ def run_test(name, config_text, commands_with_delays):
     write_config(config_text)
     
     # Start process
-    p = subprocess.Popen(['build/src/os_emulator.exe'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    p = subprocess.Popen([EXE], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     
     output = []
     
@@ -21,6 +26,11 @@ def run_test(name, config_text, commands_with_delays):
             p.stdin.write(cmd + "\n")
             p.stdin.flush()
     
+    # Every command except `initialize` is refused until the system is initialized,
+    # so without this the tests only ever exercised the initialize gate.
+    send_cmd("initialize")
+    time.sleep(1)
+
     for cmd, delay in commands_with_delays:
         if p.poll() is not None:
             break

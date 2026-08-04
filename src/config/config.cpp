@@ -169,6 +169,14 @@ void loadConfig(const std::string& filename, Config& config) {
         // Extract whitespace separatated tokens
         ss >> key >> value;
 
+        // The spec's sample config quotes string values, e.g. `scheduler "fcfs"`.
+        // Without stripping them the value reads as "\"fcfs\"", fails validation,
+        // and silently falls back to the default scheduler - which cannot be
+        // corrected at grading time, since the quiz forbids recompiling.
+        if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
+            value = value.substr(1, value.size() - 2);
+        }
+
         try {
             if (key == "num-cpu") {
                 config.num_cpu = std::stoi(value);
